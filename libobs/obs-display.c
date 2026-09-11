@@ -19,19 +19,14 @@
 #include "obs.h"
 #include "obs-internal.h"
 
-bool obs_display_init(struct obs_display *display,
-		      const struct gs_init_data *graphics_data)
+bool obs_display_init(struct obs_display *display, const struct gs_init_data *graphics_data)
 {
 	pthread_mutex_init_value(&display->draw_callbacks_mutex);
 	pthread_mutex_init_value(&display->draw_info_mutex);
 
 #if defined(_WIN32)
 	/* Conservative test for NVIDIA flickering in multi-GPU setups */
-	display->use_clear_workaround = gs_get_adapter_count() > 1 &&
-					!gs_can_adapter_fast_clear();
-#elif defined(__APPLE__)
-	/* Apple Silicon GL driver doesn't seem to track SRGB clears correctly */
-	display->use_clear_workaround = true;
+	display->use_clear_workaround = gs_get_adapter_count() > 1 && !gs_can_adapter_fast_clear();
 #else
 	display->use_clear_workaround = false;
 #endif
@@ -65,8 +60,7 @@ bool obs_display_init(struct obs_display *display,
 	return true;
 }
 
-obs_display_t *obs_display_create(const struct gs_init_data *graphics_data,
-				  uint32_t background_color)
+obs_display_t *obs_display_create(const struct gs_init_data *graphics_data, uint32_t background_color)
 {
 	struct obs_display *display = bzalloc(sizeof(struct obs_display));
 
@@ -147,9 +141,7 @@ void obs_display_update_color_space(obs_display_t *display)
 	pthread_mutex_unlock(&display->draw_info_mutex);
 }
 
-void obs_display_add_draw_callback(obs_display_t *display,
-				   void (*draw)(void *param, uint32_t cx,
-						uint32_t cy),
+void obs_display_add_draw_callback(obs_display_t *display, void (*draw)(void *param, uint32_t cx, uint32_t cy),
 				   void *param)
 {
 	if (!display)
@@ -162,9 +154,7 @@ void obs_display_add_draw_callback(obs_display_t *display,
 	pthread_mutex_unlock(&display->draw_callbacks_mutex);
 }
 
-void obs_display_remove_draw_callback(obs_display_t *display,
-				      void (*draw)(void *param, uint32_t cx,
-						   uint32_t cy),
+void obs_display_remove_draw_callback(obs_display_t *display, void (*draw)(void *param, uint32_t cx, uint32_t cy),
 				      void *param)
 {
 	if (!display)
@@ -177,9 +167,7 @@ void obs_display_remove_draw_callback(obs_display_t *display,
 	pthread_mutex_unlock(&display->draw_callbacks_mutex);
 }
 
-static inline bool render_display_begin(struct obs_display *display,
-					uint32_t cx, uint32_t cy,
-					bool update_color_space)
+static inline bool render_display_begin(struct obs_display *display, uint32_t cx, uint32_t cy, bool update_color_space)
 {
 	struct vec4 clear_color;
 
@@ -197,11 +185,23 @@ static inline bool render_display_begin(struct obs_display *display,
 	if (success) {
 		gs_begin_scene();
 
+		/*
+		 * In contrast to OpenGL or Direct3D 11, Metal and Direct3D 12 require the clear color to use linear gamma
+		 * as either the load command to clear the render target (Metal) or the explicit clear command seem to operate
+		 * on the render target in linear space.
+		 *
+		 * As OpenGL is implemented via Metal on Apple Silicon Macs and "glClear" has to be emulated via an explicit
+		 * render pass that returns the clear color for every fragment, the color becomes subject to automatic sRGB
+		 * gamma encoding if the render target uses an sRGB color format.
+		 */
+#if defined(__APPLE__) && defined(__aarch64__)
+		vec4_from_rgba_srgb(&clear_color, display->background_color);
+#else
 		if (gs_get_color_space() == GS_CS_SRGB)
 			vec4_from_rgba(&clear_color, display->background_color);
 		else
-			vec4_from_rgba_srgb(&clear_color,
-					    display->background_color);
+			vec4_from_rgba_srgb(&clear_color, display->background_color);
+#endif
 		clear_color.w = 1.0f;
 
 		const bool use_clear_workaround = display->use_clear_workaround;
@@ -219,11 +219,8 @@ static inline bool render_display_begin(struct obs_display *display,
 		gs_set_viewport(0, 0, cx, cy);
 
 		if (use_clear_workaround) {
-			gs_effect_t *const solid_effect =
-				obs->video.solid_effect;
-			gs_effect_set_vec4(gs_effect_get_param_by_name(
-						   solid_effect, "color"),
-					   &clear_color);
+			gs_effect_t *const solid_effect = obs->video.solid_effect;
+			gs_effect_set_vec4(gs_effect_get_param_by_name(solid_effect, "color"), &clear_color);
 			while (gs_effect_loop(solid_effect, "Solid"))
 				gs_draw_sprite(NULL, 0, cx, cy);
 		}

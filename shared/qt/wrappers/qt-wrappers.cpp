@@ -17,7 +17,6 @@
 
 #include "moc_qt-wrappers.cpp"
 
-#include <graphics/graphics.h>
 #include <util/threading.h>
 #include <QWidget>
 #include <QLayout>
@@ -47,14 +46,11 @@ void OBSErrorBox(QWidget *parent, const char *msg, ...)
 	va_end(args);
 }
 
-QMessageBox::StandardButton
-OBSMessageBox::question(QWidget *parent, const QString &title,
-			const QString &text,
-			QMessageBox::StandardButtons buttons,
-			QMessageBox::StandardButton defaultButton)
+QMessageBox::StandardButton OBSMessageBox::question(QWidget *parent, const QString &title, const QString &text,
+						    QMessageBox::StandardButtons buttons,
+						    QMessageBox::StandardButton defaultButton)
 {
-	QMessageBox mb(QMessageBox::Question, title, text,
-		       QMessageBox::NoButton, parent);
+	QMessageBox mb(QMessageBox::Question, title, text, QMessageBox::NoButton, parent);
 	mb.setDefaultButton(defaultButton);
 
 	if (buttons & QMessageBox::Ok) {
@@ -82,31 +78,26 @@ OBSMessageBox::question(QWidget *parent, const QString &title,
 	return (QMessageBox::StandardButton)mb.exec();
 }
 
-void OBSMessageBox::information(QWidget *parent, const QString &title,
-				const QString &text)
+void OBSMessageBox::information(QWidget *parent, const QString &title, const QString &text)
 {
-	QMessageBox mb(QMessageBox::Information, title, text,
-		       QMessageBox::NoButton, parent);
+	QMessageBox mb(QMessageBox::Information, title, text, QMessageBox::NoButton, parent);
 	mb.addButton(tr("OK"), QMessageBox::AcceptRole);
 	mb.exec();
 }
 
-void OBSMessageBox::warning(QWidget *parent, const QString &title,
-			    const QString &text, bool enableRichText)
+void OBSMessageBox::warning(QWidget *parent, const QString &title, const QString &text, bool enableRichText)
 {
-	QMessageBox mb(QMessageBox::Warning, title, text, QMessageBox::NoButton,
-		       parent);
-	if (enableRichText)
+	QMessageBox mb(QMessageBox::Warning, title, text, QMessageBox::NoButton, parent);
+	if (enableRichText) {
 		mb.setTextFormat(Qt::RichText);
+	}
 	mb.addButton(tr("OK"), QMessageBox::AcceptRole);
 	mb.exec();
 }
 
-void OBSMessageBox::critical(QWidget *parent, const QString &title,
-			     const QString &text)
+void OBSMessageBox::critical(QWidget *parent, const QString &title, const QString &text)
 {
-	QMessageBox mb(QMessageBox::Critical, title, text,
-		       QMessageBox::NoButton, parent);
+	QMessageBox mb(QMessageBox::Critical, title, text, QMessageBox::NoButton, parent);
 	mb.addButton(tr("OK"), QMessageBox::AcceptRole);
 	mb.exec();
 }
@@ -115,36 +106,40 @@ uint32_t TranslateQtKeyboardEventModifiers(Qt::KeyboardModifiers mods)
 {
 	int obsModifiers = INTERACT_NONE;
 
-	if (mods.testFlag(Qt::ShiftModifier))
+	if (mods.testFlag(Qt::ShiftModifier)) {
 		obsModifiers |= INTERACT_SHIFT_KEY;
-	if (mods.testFlag(Qt::AltModifier))
+	}
+	if (mods.testFlag(Qt::AltModifier)) {
 		obsModifiers |= INTERACT_ALT_KEY;
+	}
 #ifdef __APPLE__
 	// Mac: Meta = Control, Control = Command
-	if (mods.testFlag(Qt::ControlModifier))
+	if (mods.testFlag(Qt::ControlModifier)) {
 		obsModifiers |= INTERACT_COMMAND_KEY;
-	if (mods.testFlag(Qt::MetaModifier))
+	}
+	if (mods.testFlag(Qt::MetaModifier)) {
 		obsModifiers |= INTERACT_CONTROL_KEY;
+	}
 #else
 	// Handle windows key? Can a browser even trap that key?
-	if (mods.testFlag(Qt::ControlModifier))
+	if (mods.testFlag(Qt::ControlModifier)) {
 		obsModifiers |= INTERACT_CONTROL_KEY;
-	if (mods.testFlag(Qt::MetaModifier))
+	}
+	if (mods.testFlag(Qt::MetaModifier)) {
 		obsModifiers |= INTERACT_COMMAND_KEY;
+	}
 
 #endif
 
 	return obsModifiers;
 }
 
-QDataStream &operator<<(QDataStream &out,
-			const std::vector<std::shared_ptr<OBSSignal>> &)
+QDataStream &operator<<(QDataStream &out, const std::vector<std::shared_ptr<OBSSignal>> &)
 {
 	return out;
 }
 
-QDataStream &operator>>(QDataStream &in,
-			std::vector<std::shared_ptr<OBSSignal>> &)
+QDataStream &operator>>(QDataStream &in, std::vector<std::shared_ptr<OBSSignal>> &)
 {
 	return in;
 }
@@ -185,13 +180,15 @@ QDataStream &operator>>(QDataStream &in, OBSSource &source)
 
 void DeleteLayout(QLayout *layout)
 {
-	if (!layout)
+	if (!layout) {
 		return;
+	}
 
 	for (;;) {
 		QLayoutItem *item = layout->takeAt(0);
-		if (!item)
+		if (!item) {
 			break;
+		}
 
 		QLayout *subLayout = item->layout();
 		if (subLayout) {
@@ -207,9 +204,7 @@ void DeleteLayout(QLayout *layout)
 
 class QuickThread : public QThread {
 public:
-	explicit inline QuickThread(std::function<void()> func_) : func(func_)
-	{
-	}
+	explicit inline QuickThread(std::function<void()> func_) : func(func_) {}
 
 private:
 	virtual void run() override { func(); }
@@ -230,8 +225,7 @@ void ExecuteFuncSafeBlock(std::function<void()> func)
 
 	auto wait = [&]() {
 		func();
-		QMetaObject::invokeMethod(&eventLoop, "quit",
-					  Qt::QueuedConnection);
+		QMetaObject::invokeMethod(&eventLoop, &QEventLoop::quit, Qt::QueuedConnection);
 	};
 
 	os_atomic_inc_long(&insideEventLoop);
@@ -242,8 +236,7 @@ void ExecuteFuncSafeBlock(std::function<void()> func)
 	os_atomic_dec_long(&insideEventLoop);
 }
 
-void ExecuteFuncSafeBlockMsgBox(std::function<void()> func,
-				const QString &title, const QString &text)
+void ExecuteFuncSafeBlockMsgBox(std::function<void()> func, const QString &title, const QString &text)
 {
 	QMessageBox dlg;
 	dlg.setWindowFlags(dlg.windowFlags() & ~Qt::WindowCloseButtonHint);
@@ -253,7 +246,7 @@ void ExecuteFuncSafeBlockMsgBox(std::function<void()> func,
 
 	auto wait = [&]() {
 		func();
-		QMetaObject::invokeMethod(&dlg, "accept", Qt::QueuedConnection);
+		QMetaObject::invokeMethod(&dlg, &QMessageBox::accept, Qt::QueuedConnection);
 	};
 
 	os_atomic_inc_long(&insideEventLoop);
@@ -271,13 +264,13 @@ void EnableThreadedMessageBoxes(bool enable)
 	enable_message_boxes = enable;
 }
 
-void ExecThreadedWithoutBlocking(std::function<void()> func,
-				 const QString &title, const QString &text)
+void ExecThreadedWithoutBlocking(std::function<void()> func, const QString &title, const QString &text)
 {
-	if (!enable_message_boxes)
+	if (!enable_message_boxes) {
 		ExecuteFuncSafeBlock(func);
-	else
+	} else {
 		ExecuteFuncSafeBlockMsgBox(func, title, text);
+	}
 }
 
 bool LineEditCanceled(QEvent *event)
@@ -311,17 +304,15 @@ bool LineEditChanged(QEvent *event)
 
 void SetComboItemEnabled(QComboBox *c, int idx, bool enabled)
 {
-	QStandardItemModel *model =
-		dynamic_cast<QStandardItemModel *>(c->model());
+	QStandardItemModel *model = dynamic_cast<QStandardItemModel *>(c->model());
 	QStandardItem *item = model->item(idx);
-	item->setFlags(enabled ? Qt::ItemIsSelectable | Qt::ItemIsEnabled
-			       : Qt::NoItemFlags);
+	item->setFlags(enabled ? Qt::ItemIsSelectable | Qt::ItemIsEnabled : Qt::NoItemFlags);
 }
 
-void setThemeID(QWidget *widget, const QString &themeID)
+void setClasses(QWidget *widget, const QString &newClasses)
 {
-	if (widget->property("themeID").toString() != themeID) {
-		widget->setProperty("themeID", themeID);
+	if (widget->property("class").toString() != newClasses) {
+		widget->setProperty("class", newClasses);
 
 		/* force style sheet recalculation */
 		QString qss = widget->styleSheet();
@@ -332,44 +323,38 @@ void setThemeID(QWidget *widget, const QString &themeID)
 
 QString SelectDirectory(QWidget *parent, QString title, QString path)
 {
-	QString dir = QFileDialog::getExistingDirectory(
-		parent, title, path,
-		QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
+	QString dir = QFileDialog::getExistingDirectory(parent, title, path,
+							QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
 
 	return dir;
 }
 
-QString SaveFile(QWidget *parent, QString title, QString path,
-		 QString extensions)
+QString SaveFile(QWidget *parent, QString title, QString path, QString extensions)
 {
-	QString file =
-		QFileDialog::getSaveFileName(parent, title, path, extensions);
+	QString file = QFileDialog::getSaveFileName(parent, title, path, extensions);
 
 	return file;
 }
 
-QString OpenFile(QWidget *parent, QString title, QString path,
-		 QString extensions)
+QString OpenFile(QWidget *parent, QString title, QString path, QString extensions)
 {
-	QString file =
-		QFileDialog::getOpenFileName(parent, title, path, extensions);
+	QString file = QFileDialog::getOpenFileName(parent, title, path, extensions);
 
 	return file;
 }
 
-QStringList OpenFiles(QWidget *parent, QString title, QString path,
-		      QString extensions)
+QStringList OpenFiles(QWidget *parent, QString title, QString path, QString extensions)
 {
-	QStringList files =
-		QFileDialog::getOpenFileNames(parent, title, path, extensions);
+	QStringList files = QFileDialog::getOpenFileNames(parent, title, path, extensions);
 
 	return files;
 }
 
 static void SetLabelText(QLabel *label, const QString &newText)
 {
-	if (label->text() != newText)
+	if (label->text() != newText) {
 		label->setText(newText);
+	}
 }
 
 void TruncateLabel(QLabel *label, QString newText, int length)
@@ -392,8 +377,9 @@ void RefreshToolBarStyling(QToolBar *toolBar)
 	for (QAction *action : toolBar->actions()) {
 		QWidget *widget = toolBar->widgetForAction(action);
 
-		if (!widget)
+		if (!widget) {
 			continue;
+		}
 
 		widget->style()->unpolish(widget);
 		widget->style()->polish(widget);

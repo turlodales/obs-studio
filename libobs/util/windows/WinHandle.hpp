@@ -21,8 +21,9 @@ class WinHandle {
 
 	inline void Clear()
 	{
-		if (handle && handle != INVALID_HANDLE_VALUE)
+		if (handle && handle != INVALID_HANDLE_VALUE) {
 			CloseHandle(handle);
+		}
 	}
 
 public:
@@ -44,10 +45,7 @@ public:
 
 	inline HANDLE *operator&() { return &handle; }
 
-	inline bool Valid() const
-	{
-		return handle && handle != INVALID_HANDLE_VALUE;
-	}
+	inline bool Valid() const { return handle && handle != INVALID_HANDLE_VALUE; }
 };
 
 class WinModule {
@@ -55,8 +53,9 @@ class WinModule {
 
 	inline void Clear()
 	{
-		if (handle)
+		if (handle) {
 			FreeLibrary(handle);
+		}
 	}
 
 public:

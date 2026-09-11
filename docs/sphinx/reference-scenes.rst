@@ -197,15 +197,6 @@ General Scene Functions
 
 ---------------------
 
-.. function:: void obs_scene_addref(obs_scene_t *scene)
-
-   Adds a reference to a scene.
-
-.. deprecated:: 27.2.0
-   Use :c:func:`obs_scene_get_ref()` instead.
-
----------------------
-
 .. function:: obs_scene_t *obs_scene_get_ref(obs_scene_t *scene)
 
    Returns an incremented reference if still valid, otherwise returns
@@ -326,14 +317,6 @@ Scene Item Functions
 
    :return: The source associated with the scene item.  Does not
             increment the reference
-
----------------------
-
-.. function:: obs_sceneitem_t *obs_scene_sceneitem_from_source(obs_scene_t *scene, obs_source_t *source)
-
-   This will add a reference to the sceneitem.
-
-   :return: The sceneitem associated with a source in a scene. Returns NULL if not found.
 
 ---------------------
 
@@ -461,10 +444,13 @@ Scene Item Functions
 
 ---------------------
 
-.. function:: void obs_sceneitem_set_info(obs_sceneitem_t *item, const struct obs_transform_info *info)
-              void obs_sceneitem_get_info(const obs_sceneitem_t *item, struct obs_transform_info *info)
+.. function:: void obs_sceneitem_set_info2(obs_sceneitem_t *item, const struct obs_transform_info *info)
+              void obs_sceneitem_get_info2(const obs_sceneitem_t *item, struct obs_transform_info *info)
 
    Sets/gets the transform information of the scene item.
+   This version of the function also sets the `crop_to_bounds` member of `obs_transform_info`.
+
+   .. versionadded:: 30.1
 
 ---------------------
 
@@ -582,16 +568,6 @@ Scene Item Functions
 
 ---------------------
 
-.. function:: void obs_sceneitem_set_show_transition(obs_sceneitem_t *item, obs_source_t *transition)
-              void obs_sceneitem_set_hide_transition(obs_sceneitem_t *item, obs_source_t *transition)
-
-   Sets a transition for showing or hiding a scene item. Set *NULL* to remove the transition.
-
-.. deprecated:: 27.2.4
-   Use :c:func:`obs_sceneitem_set_transition()` instead.
-
----------------------
-
 .. function:: obs_source_t *obs_sceneitem_get_transition(obs_sceneitem_t *item, bool show)
 
    :param item: The target scene item
@@ -600,14 +576,6 @@ Scene Item Functions
    :return:     The transition for showing or hiding a scene item. *NULL* if no transition is set.
 
 ---------------------
-
-.. function:: obs_source_t *obs_sceneitem_get_show_transition(obs_sceneitem_t *item)
-              obs_source_t *obs_sceneitem_get_hide_transition(obs_sceneitem_t *item)
-
-   :return: The transition for showing or hiding a scene item. *NULL* if no transition is set.
-
-.. deprecated:: 27.2.4
-   Use :c:func:`obs_sceneitem_get_transition()` instead.
 
 ---------------------
 
@@ -622,16 +590,6 @@ Scene Item Functions
 
 ---------------------
 
-.. function:: void obs_sceneitem_set_show_transition_duration(obs_sceneitem_t *item, uint32_t duration_ms)
-              void obs_sceneitem_set_hide_transition_duration(obs_sceneitem_t *item, uint32_t duration_ms)
-
-   Sets the transition duration for showing or hiding a scene item.
-
-.. deprecated:: 27.2.4
-   Use :c:func:`obs_sceneitem_set_transition_duration()` instead.
-
----------------------
-
 .. function:: uint32_t obs_sceneitem_get_transition_duration(obs_sceneitem_t *item, bool show)
 
    Gets the transition duration for showing or hiding a scene item.
@@ -640,16 +598,6 @@ Scene Item Functions
    :param show: If *true*, this will return the duration of the show transition.
                 If *false*, this will return the duration of the hide transition.
    :return:     The transition duration in milliseconds
-
----------------------
-
-.. function:: uint32_t obs_sceneitem_get_show_transition_duration(obs_sceneitem_t *item)
-              uint32_t obs_sceneitem_get_hide_transition_duration(obs_sceneitem_t *item)
-
-   :return: The transition duration in ms for showing or hiding a scene item.
-
-.. deprecated:: 27.2.4
-   Use :c:func:`obs_sceneitem_get_transition_duration()` instead.
 
 ---------------------
 

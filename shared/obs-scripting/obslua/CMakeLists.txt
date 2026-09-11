@@ -1,6 +1,4 @@
-cmake_minimum_required(VERSION 3.22...3.25)
-
-legacy_check()
+cmake_minimum_required(VERSION 3.28...3.30)
 
 if(POLICY CMP0078)
   cmake_policy(SET CMP0078 NEW)
@@ -35,12 +33,12 @@ target_compile_options(
 
 target_compile_definitions(
   obslua
-  PRIVATE SWIG_TYPE_TABLE=obslua SWIG_LUA_INTERPRETER_NO_DEBUG $<$<BOOL:${ENABLE_UI}>:ENABLE_UI>
+  PRIVATE SWIG_TYPE_TABLE=obslua SWIG_LUA_INTERPRETER_NO_DEBUG $<$<BOOL:${ENABLE_FRONTEND}>:ENABLE_FRONTEND>
 )
 
 target_link_libraries(
   obslua
-  PRIVATE OBS::cstrcache OBS::libobs OBS::scripting Luajit::Luajit $<$<BOOL:${ENABLE_UI}>:OBS::frontend-api>
+  PRIVATE OBS::cstrcache OBS::libobs OBS::scripting Luajit::Luajit $<$<BOOL:${ENABLE_FRONTEND}>:OBS::frontend-api>
 )
 
 set_property(
@@ -50,7 +48,7 @@ set_property(
     SWIG_COMPILE_DEFINITIONS
       "SWIG_TYPE_TABLE=obslua"
       "SWIG_LUA_INTERPRETER_NO_DEBUG"
-      "$<$<BOOL:${ENABLE_UI}>:ENABLE_UI>"
+      "$<$<BOOL:${ENABLE_FRONTEND}>:ENABLE_FRONTEND>"
 )
 
 set_target_properties_obs(obslua PROPERTIES FOLDER scripting XCODE_ATTRIBUTE_STRIP_STYLE non-global)

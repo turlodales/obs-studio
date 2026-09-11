@@ -1,5 +1,3 @@
-cmake_minimum_required(VERSION 3.22...3.25)
-
 option(ENABLE_SCRIPTING_LUA "Enable Lua scripting support" ON)
 
 if(ENABLE_SCRIPTING_LUA)
@@ -21,7 +19,7 @@ if(ENABLE_SCRIPTING_LUA)
   target_sources(
     obs-scripting
     PRIVATE
-      $<$<BOOL:${ENABLE_UI}>:obs-scripting-lua-frontend.c>
+      $<$<BOOL:${ENABLE_FRONTEND}>:obs-scripting-lua-frontend.c>
       obs-scripting-lua-source.c
       obs-scripting-lua.c
       obs-scripting-lua.h

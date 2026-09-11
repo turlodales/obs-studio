@@ -5,9 +5,7 @@ SliderIgnoreScroll::SliderIgnoreScroll(QWidget *parent) : QSlider(parent)
 	setFocusPolicy(Qt::StrongFocus);
 }
 
-SliderIgnoreScroll::SliderIgnoreScroll(Qt::Orientation orientation,
-				       QWidget *parent)
-	: QSlider(parent)
+SliderIgnoreScroll::SliderIgnoreScroll(Qt::Orientation orientation, QWidget *parent) : QSlider(parent)
 {
 	setFocusPolicy(Qt::StrongFocus);
 	setOrientation(orientation);
@@ -15,18 +13,18 @@ SliderIgnoreScroll::SliderIgnoreScroll(Qt::Orientation orientation,
 
 void SliderIgnoreScroll::wheelEvent(QWheelEvent *event)
 {
-	if (!hasFocus())
+	if (!hasFocus()) {
 		event->ignore();
-	else
+	} else {
 		QSlider::wheelEvent(event);
+	}
 }
 
 void SliderIgnoreClick::mousePressEvent(QMouseEvent *event)
 {
 	QStyleOptionSlider styleOption;
 	initStyleOption(&styleOption);
-	QRect handle = style()->subControlRect(QStyle::CC_Slider, &styleOption,
-					       QStyle::SC_SliderHandle, this);
+	QRect handle = style()->subControlRect(QStyle::CC_Slider, &styleOption, QStyle::SC_SliderHandle, this);
 	if (handle.contains(event->position().toPoint())) {
 		SliderIgnoreScroll::mousePressEvent(event);
 		dragging = true;

@@ -15,20 +15,20 @@
 #pragma warning(disable : 4505)
 #endif
 
-static bool operator!=(const media_frames_per_second &a,
-		       const media_frames_per_second &b)
+static bool operator!=(const media_frames_per_second &a, const media_frames_per_second &b)
 {
-	return a.numerator != b.numerator || a.denominator != b.denominator;
+	// Compare fractions via cross multiplication, to avoid rounding or division
+	uint64_t lhs = (uint64_t)a.numerator * (uint64_t)b.denominator;
+	uint64_t rhs = (uint64_t)b.numerator * (uint64_t)a.denominator;
+	return lhs != rhs;
 }
 
-static bool operator==(const media_frames_per_second &a,
-		       const media_frames_per_second &b)
+static bool operator==(const media_frames_per_second &a, const media_frames_per_second &b)
 {
 	return !(a != b);
 }
 
-using frame_rate_range_t =
-	std::pair<media_frames_per_second, media_frames_per_second>;
+using frame_rate_range_t = std::pair<media_frames_per_second, media_frames_per_second>;
 using frame_rate_ranges_t = std::vector<frame_rate_range_t>;
 
 class OBSFrameRatePropertyWidget : public QWidget {

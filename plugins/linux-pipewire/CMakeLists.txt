@@ -1,6 +1,4 @@
-cmake_minimum_required(VERSION 3.22...3.25)
-
-legacy_check()
+cmake_minimum_required(VERSION 3.28...3.30)
 
 option(ENABLE_PIPEWIRE "Enable PipeWire support" ON)
 if(NOT ENABLE_PIPEWIRE)
@@ -9,7 +7,7 @@ if(NOT ENABLE_PIPEWIRE)
 endif()
 
 find_package(PipeWire 0.3.33 REQUIRED)
-find_package(Gio REQUIRED)
+find_package(Gio 2.76 REQUIRED)
 find_package(Libdrm REQUIRED)
 get_target_property(libdrm_include_directories Libdrm::Libdrm INTERFACE_INCLUDE_DIRECTORIES)
 

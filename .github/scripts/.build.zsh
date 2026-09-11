@@ -21,8 +21,8 @@ if (( ! ${+CI} )) {
   exit 1
 }
 
-autoload -Uz is-at-least && if ! is-at-least 5.2; then
-  print -u2 -PR "%F{1}${funcstack[1]##*/}:%f Running on Zsh version %B${ZSH_VERSION}%b, but Zsh %B5.2%b is the minimum supported version. Upgrade Zsh to fix this issue."
+autoload -Uz is-at-least && if ! is-at-least 5.9; then
+  print -u2 -PR "%F{1}${funcstack[1]##*/}:%f Running on Zsh version %B${ZSH_VERSION}%b, but Zsh %B5.9%b is the minimum supported version. Upgrade Zsh to fix this issue."
   exit 1
 fi
 
@@ -40,15 +40,9 @@ build() {
   if (( ! ${+SCRIPT_HOME} )) typeset -g SCRIPT_HOME=${ZSH_ARGZERO:A:h}
   local host_os=${${(s:-:)ZSH_ARGZERO:t:r}[2]}
   local project_root=${SCRIPT_HOME:A:h:h}
-  local buildspec_file=${project_root}/buildspec.json
 
   fpath=(${SCRIPT_HOME}/utils.zsh ${fpath})
-  autoload -Uz log_group log_error log_output check_${host_os} setup_ccache
-
-  if [[ ! -r ${buildspec_file} ]] {
-    log_error 'Missing buildspec.json in project checkout.'
-    return 2
-  }
+  autoload -Uz log_group log_error log_output check_${host_os}
 
   local -i debug=0
 
@@ -57,7 +51,6 @@ build() {
     macos-x86_64
     macos-arm64
     ubuntu-x86_64
-    ubuntu-aarch64
   )
 
   local config='RelWithDebInfo'
@@ -105,14 +98,14 @@ build() {
   set -- ${(@)args}
 
   check_${host_os}
-  setup_ccache
 
   if [[ ${host_os} == ubuntu ]] {
-    autoload -Uz setup_ubuntu && setup_ubuntu
+    autoload -Uz setup_ubuntu setup_ccache
+    setup_ccache
+    setup_ubuntu
   }
 
-  local product_name
-  read -r product_name <<< "$(jq -r '.name' ${buildspec_file})"
+  local product_name='obs-studio'
 
   pushd ${project_root}
 
@@ -124,7 +117,14 @@ build() {
 
   case ${target} {
     macos-*)
-      cmake_args+=(--preset 'macos-ci' -DCMAKE_OSX_ARCHITECTURES:STRING=${target##*-})
+      cmake_args+=(
+        --preset 'macos-ci'
+        -DCMAKE_OSX_ARCHITECTURES:STRING=${target##*-}
+      )
+
+      if (( debug )) {
+        cmake_args+=(CMAKE_XCODE_ATTRIBUTE_COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS:STRING=YES)
+      }
 
       typeset -gx NSUnbufferedIO=YES
 
@@ -202,7 +202,7 @@ build() {
 
           rm -rf OBS.app
           mkdir OBS.app
-          ditto UI/${config}/OBS.app OBS.app
+          ditto frontend/${config}/OBS.app OBS.app
         }
       }
       popd
@@ -211,16 +211,14 @@ build() {
       local cmake_bin='/usr/bin/cmake'
       cmake_args+=(
         --preset ubuntu-ci
-        --toolchain ${project_root}/cmake/linux/toolchain-${target##*-}-gcc.cmake
         -DENABLE_BROWSER:BOOL=ON
         -DCEF_ROOT_DIR:PATH="${project_root}/.deps/cef_binary_${CEF_VERSION}_${target//ubuntu-/linux_}"
       )
 
-      if (( ! UBUNTU_2210_OR_LATER )) cmake_args+=(-DENABLE_NEW_MPEGTS_OUTPUT:BOOL=OFF)
-      if [[ ${target##*-} == aarch64 ]] cmake-args+=(-DENABLE_QSV11:BOOL=OFF)
-
       cmake_build_args+=(build_${target%%-*} --config ${config} --parallel)
       cmake_install_args+=(build_${target%%-*} --prefix ${project_root}/build_${target%%-*}/install/${config})
+
+      export CLICOLOR_FORCE=1
 
       log_group "Configuring ${product_name}..."
       ${cmake_bin} -S ${project_root} ${cmake_args}

@@ -20,6 +20,7 @@
 #include <stdarg.h>
 #include <util/c99defs.h>
 #include <obs-data.h>
+#include <obs.h>
 #include <obs-properties.h>
 
 #ifdef __cplusplus
@@ -29,21 +30,16 @@ extern "C" {
 struct obs_script;
 typedef struct obs_script obs_script_t;
 
-enum obs_script_lang {
-	OBS_SCRIPT_LANG_UNKNOWN,
-	OBS_SCRIPT_LANG_LUA,
-	OBS_SCRIPT_LANG_PYTHON
-};
+enum obs_script_lang { OBS_SCRIPT_LANG_UNKNOWN, OBS_SCRIPT_LANG_LUA, OBS_SCRIPT_LANG_PYTHON };
 
+EXPORT void obs_scripting_set_module(obs_module_t *module);
 EXPORT bool obs_scripting_load(void);
 EXPORT void obs_scripting_unload(void);
 EXPORT const char **obs_scripting_supported_formats(void);
 
-typedef void (*scripting_log_handler_t)(void *p, obs_script_t *script, int lvl,
-					const char *msg);
+typedef void (*scripting_log_handler_t)(void *p, obs_script_t *script, int lvl, const char *msg);
 
-EXPORT void obs_scripting_set_log_callback(scripting_log_handler_t handler,
-					   void *param);
+EXPORT void obs_scripting_set_log_callback(scripting_log_handler_t handler, void *param);
 
 EXPORT bool obs_scripting_python_runtime_linked(void);
 EXPORT void obs_scripting_python_version(char *version, size_t version_length);

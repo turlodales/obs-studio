@@ -30,6 +30,10 @@ if(NOT TARGET OBS::w32-pthreads)
   add_subdirectory("${CMAKE_SOURCE_DIR}/deps/w32-pthreads" "${CMAKE_BINARY_DIR}/deps/w32-pthreads")
 endif()
 
+if(NOT OBS_PARENT_ARCHITECTURE STREQUAL CMAKE_VS_PLATFORM_NAME)
+  return()
+endif()
+
 configure_file(cmake/windows/obs-module.rc.in libobs.rc)
 
 target_sources(
@@ -61,6 +65,14 @@ target_compile_options(libobs PRIVATE $<$<COMPILE_LANGUAGE:C,CXX>:/EHc->)
 set_source_files_properties(
   obs-win-crash-handler.c
   PROPERTIES COMPILE_DEFINITIONS OBS_VERSION="${OBS_VERSION_CANONICAL}"
+)
+
+set_source_files_properties(
+  graphics/libnsgif/gif.c
+  graphics/libnsgif/lzw.c
+  graphics/libnsgif/lzw.h
+  graphics/libnsgif/nsgif.h
+  PROPERTIES COMPILE_OPTIONS "/wd4244;/wd4267"
 )
 
 target_link_libraries(

@@ -203,14 +203,14 @@ function(find_dependencies)
   endforeach()
 
   if(NOT is_root)
-    set(found_libraries ${found_libraries} PARENT_SCOPE)
     # Exit recursive branch
-    return()
+    return(PROPAGATE found_libraries)
   endif()
 
   list(REMOVE_DUPLICATES found_libraries)
   list(APPEND ${var_FOUND_VAR} ${found_libraries})
-  set(${var_FOUND_VAR} ${${var_FOUND_VAR}} PARENT_SCOPE)
+
+  return(PROPAGATE ${var_FOUND_VAR})
 endfunction()
 
 # find_qt_plugins: Find and add Qt plugin libraries associated with Qt component to target
@@ -227,8 +227,7 @@ function(find_qt_plugins)
   endif()
 
   list(
-    APPEND
-    qt_plugins_Core
+    APPEND qt_plugins_Core
     platforms
     printsupport
     styles
@@ -278,7 +277,8 @@ function(find_qt_plugins)
     endforeach()
   endif()
 
-  set(${var_FOUND_VAR} ${plugins_list} PARENT_SCOPE)
+  set(${var_FOUND_VAR} ${plugins_list})
+  return(PROPAGATE ${var_FOUND_VAR})
 endfunction()
 
 # target_export: Helper function to export target as CMake package
@@ -303,12 +303,17 @@ function(target_export target)
   install(
     TARGETS ${target}
     EXPORT ${target}Targets
-    RUNTIME DESTINATION "${OBS_EXECUTABLE_DESTINATION}" COMPONENT Development ${exclude_variant}
-    LIBRARY DESTINATION "${OBS_LIBRARY_DESTINATION}" COMPONENT Development ${exclude_variant}
-    ARCHIVE DESTINATION "${OBS_LIBRARY_DESTINATION}" COMPONENT Development ${exclude_variant}
-    FRAMEWORK DESTINATION Frameworks COMPONENT Development ${exclude_variant}
+    RUNTIME DESTINATION "${OBS_EXECUTABLE_DESTINATION}" COMPONENT Development
+    ${exclude_variant}
+    LIBRARY DESTINATION "${OBS_LIBRARY_DESTINATION}" COMPONENT Development
+    ${exclude_variant}
+    ARCHIVE DESTINATION "${OBS_LIBRARY_DESTINATION}" COMPONENT Development
+    ${exclude_variant}
+    FRAMEWORK DESTINATION Frameworks COMPONENT Development
+    ${exclude_variant}
     INCLUDES DESTINATION "${include_destination}"
-    PUBLIC_HEADER DESTINATION "${include_destination}" COMPONENT Development ${exclude_variant}
+    PUBLIC_HEADER DESTINATION "${include_destination}" COMPONENT Development
+    ${exclude_variant}
   )
 
   get_target_property(obs_public_headers ${target} OBS_PUBLIC_HEADERS)
@@ -398,6 +403,15 @@ function(target_export target)
     COMPONENT Development
     ${exclude_variant}
   )
+
+  if(target STREQUAL libobs)
+    install(
+      FILES "${CMAKE_SOURCE_DIR}/cmake/finders/FindSIMDe.cmake"
+      DESTINATION "${package_destination}/finders"
+      COMPONENT Development
+      ${exclude_variant}
+    )
+  endif()
 endfunction()
 
 # check_uuid: Helper function to check for valid UUID
@@ -432,15 +446,10 @@ function(check_uuid uuid_string return_value)
     set(valid_uuid FALSE)
   endif()
   message(DEBUG "UUID ${uuid_string} valid: ${valid_uuid}")
-  set(${return_value} ${valid_uuid} PARENT_SCOPE)
-endfunction()
 
-# legacy_check: Check if new CMake framework was not enabled and load legacy rules instead
-macro(legacy_check)
-  if(OBS_CMAKE_VERSION VERSION_LESS 3.0.0)
-    message(FATAL_ERROR "CMake version changed between CMakeLists.txt.")
-  endif()
-endmacro()
+  set(${return_value} ${valid_uuid})
+  return(PROPAGATE ${return_value})
+endfunction()
 
 # add_obs_plugin: Add plugin subdirectory if host platform is in specified list of supported platforms and architectures
 function(add_obs_plugin target)
@@ -472,11 +481,14 @@ function(add_obs_plugin target)
   else()
     foreach(architecture IN LISTS _AOP_ARCHITECTURES)
       if(OS_WINDOWS)
-        if("${architecture}" STREQUAL CMAKE_GENERATOR_PLATFORM)
+        if("${architecture}" STREQUAL CMAKE_VS_PLATFORM_NAME)
           set(found_architecture TRUE)
         endif()
       elseif(OS_MACOS)
-        if("${architecture}" IN_LIST CMAKE_OSX_ARCHITECTURES)
+        if(
+          "${architecture}" IN_LIST CMAKE_OSX_ARCHITECTURES
+          OR "${architecture}" STREQUAL "${CMAKE_HOST_SYSTEM_PROCESSOR}"
+        )
           set(found_architecture TRUE)
         endif()
       elseif("${architecture}" STREQUAL CMAKE_SYSTEM_PROCESSOR)

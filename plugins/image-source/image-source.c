@@ -5,9 +5,8 @@
 #include <util/dstr.h>
 #include <sys/stat.h>
 
-#define blog(log_level, format, ...)                    \
-	blog(log_level, "[image_source: '%s'] " format, \
-	     obs_source_get_name(context->source), ##__VA_ARGS__)
+#define blog(log_level, format, ...) \
+	blog(log_level, "[image_source: '%s'] " format, obs_source_get_name(context->source), ##__VA_ARGS__)
 
 #define debug(format, ...) blog(LOG_DEBUG, format, ##__VA_ARGS__)
 #define info(format, ...) blog(LOG_INFO, format, ##__VA_ARGS__)
@@ -28,7 +27,7 @@ struct image_source {
 	volatile bool file_decoded;
 	volatile bool texture_loaded;
 
-	gs_image_file4_t if4;
+	gs_image_file_ex_t image;
 };
 
 static time_t get_modified_timestamp(const char *filename)
@@ -36,6 +35,7 @@ static time_t get_modified_timestamp(const char *filename)
 	struct stat stats;
 	if (os_stat(filename, &stats) != 0)
 		return -1;
+
 	return stats.st_mtime;
 }
 
@@ -52,10 +52,8 @@ void image_source_preload_image(void *data)
 		return;
 
 	context->file_timestamp = get_modified_timestamp(context->file);
-	gs_image_file4_init(&context->if4, context->file,
-			    context->linear_alpha
-				    ? GS_IMAGE_ALPHA_PREMULTIPLY_SRGB
-				    : GS_IMAGE_ALPHA_PREMULTIPLY);
+	gs_image_file_ex_init(&context->image, context->file,
+			      context->linear_alpha ? GS_IMAGE_ALPHA_PREMULTIPLY_SRGB : GS_IMAGE_ALPHA_PREMULTIPLY);
 	os_atomic_set_bool(&context->file_decoded, true);
 }
 
@@ -68,11 +66,12 @@ static void image_source_load_texture(void *data)
 	debug("loading texture '%s'", context->file);
 
 	obs_enter_graphics();
-	gs_image_file4_init_texture(&context->if4);
+	gs_image_file_ex_init_texture(&context->image);
 	obs_leave_graphics();
 
-	if (!context->if4.image3.image2.image.loaded)
+	if (!context->image.loaded)
 		warn("failed to load texture '%s'", context->file);
+
 	context->update_time_elapsed = 0;
 	os_atomic_set_bool(&context->texture_loaded, true);
 }
@@ -84,7 +83,7 @@ static void image_source_unload(void *data)
 	os_atomic_set_bool(&context->texture_loaded, false);
 
 	obs_enter_graphics();
-	gs_image_file4_free(&context->if4);
+	gs_image_file_ex_free(&context->image);
 	obs_leave_graphics();
 }
 
@@ -108,6 +107,7 @@ static void image_source_update(void *data, obs_data_t *settings)
 
 	if (context->file)
 		bfree(context->file);
+
 	context->file = bstrdup(file);
 	context->persistent = !unload;
 	context->linear_alpha = linear_alpha;
@@ -149,13 +149,13 @@ static void restart_gif(void *data)
 {
 	struct image_source *context = data;
 
-	if (context->if4.image3.image2.image.is_animated_gif) {
-		context->if4.image3.image2.image.cur_frame = 0;
-		context->if4.image3.image2.image.cur_loop = 0;
-		context->if4.image3.image2.image.cur_time = 0;
+	if (context->image.is_animated_gif) {
+		context->image.cur_frame = 0;
+		context->image.cur_loop = 0;
+		context->image.cur_time = 0;
 
 		obs_enter_graphics();
-		gs_image_file4_update_texture(&context->if4);
+		gs_image_file_ex_update_texture(&context->image);
 		obs_leave_graphics();
 
 		context->restart_gif = false;
@@ -185,19 +185,20 @@ static void image_source_destroy(void *data)
 
 	if (context->file)
 		bfree(context->file);
+
 	bfree(context);
 }
 
 static uint32_t image_source_getwidth(void *data)
 {
 	struct image_source *context = data;
-	return context->if4.image3.image2.image.cx;
+	return context->image.cx;
 }
 
 static uint32_t image_source_getheight(void *data)
 {
 	struct image_source *context = data;
-	return context->if4.image3.image2.image.cy;
+	return context->image.cy;
 }
 
 static void image_source_render(void *data, gs_effect_t *effect)
@@ -206,7 +207,7 @@ static void image_source_render(void *data, gs_effect_t *effect)
 	if (!os_atomic_load_bool(&context->texture_loaded))
 		return;
 
-	struct gs_image_file *const image = &context->if4.image3.image2.image;
+	gs_image_file_ex_t *const image = &context->image;
 	gs_texture_t *const texture = image->texture;
 	if (!texture)
 		return;
@@ -254,8 +255,9 @@ static void image_source_tick(void *data, float seconds)
 
 	if (obs_source_showing(context->source)) {
 		if (!context->active) {
-			if (context->if4.image3.image2.image.is_animated_gif)
+			if (context->image.is_animated_gif)
 				context->last_time = frame_time;
+
 			context->active = true;
 		}
 
@@ -271,14 +273,13 @@ static void image_source_tick(void *data, float seconds)
 		return;
 	}
 
-	if (context->last_time &&
-	    context->if4.image3.image2.image.is_animated_gif) {
+	if (context->last_time && context->image.is_animated_gif) {
 		uint64_t elapsed = frame_time - context->last_time;
-		bool updated = gs_image_file4_tick(&context->if4, elapsed);
+		bool updated = gs_image_file_ex_tick(&context->image, elapsed);
 
 		if (updated) {
 			obs_enter_graphics();
-			gs_image_file4_update_texture(&context->if4);
+			gs_image_file_ex_update_texture(&context->image);
 			obs_leave_graphics();
 		}
 	}
@@ -310,12 +311,9 @@ static obs_properties_t *image_source_properties(void *data)
 
 	obs_properties_t *props = obs_properties_create();
 
-	obs_properties_add_path(props, "file", obs_module_text("File"),
-				OBS_PATH_FILE, image_filter, NULL);
-	obs_properties_add_bool(props, "unload",
-				obs_module_text("UnloadWhenNotShowing"));
-	obs_properties_add_bool(props, "linear_alpha",
-				obs_module_text("LinearAlpha"));
+	obs_properties_add_path(props, "file", obs_module_text("File"), OBS_PATH_FILE, image_filter, NULL);
+	obs_properties_add_bool(props, "unload", obs_module_text("UnloadWhenNotShowing"));
+	obs_properties_add_bool(props, "linear_alpha", obs_module_text("LinearAlpha"));
 
 	return props;
 }
@@ -323,7 +321,7 @@ static obs_properties_t *image_source_properties(void *data)
 uint64_t image_source_get_memory_usage(void *data)
 {
 	struct image_source *s = data;
-	return s->if4.image3.image2.mem_usage;
+	return s->image.mem_usage;
 }
 
 static void missing_file_callback(void *src, const char *new_path, void *data)
@@ -346,9 +344,8 @@ static obs_missing_files_t *image_source_missingfiles(void *data)
 
 	if (strcmp(s->file, "") != 0) {
 		if (!os_file_exists(s->file)) {
-			obs_missing_file_t *file = obs_missing_file_create(
-				s->file, missing_file_callback,
-				OBS_MISSING_FILE_SOURCE, s->source, NULL);
+			obs_missing_file_t *file = obs_missing_file_create(s->file, missing_file_callback,
+									   OBS_MISSING_FILE_SOURCE, s->source, NULL);
 
 			obs_missing_files_add_file(files, file);
 		}
@@ -357,16 +354,15 @@ static obs_missing_files_t *image_source_missingfiles(void *data)
 	return files;
 }
 
-static enum gs_color_space
-image_source_get_color_space(void *data, size_t count,
-			     const enum gs_color_space *preferred_spaces)
+static enum gs_color_space image_source_get_color_space(void *data, size_t count,
+							const enum gs_color_space *preferred_spaces)
 {
 	UNUSED_PARAMETER(count);
 	UNUSED_PARAMETER(preferred_spaces);
 
 	struct image_source *const s = data;
-	gs_image_file4_t *const if4 = &s->if4;
-	return if4->image3.image2.image.texture ? if4->space : GS_CS_SRGB;
+	gs_image_file_ex_t *const image = &s->image;
+	return image->texture ? image->space : GS_CS_SRGB;
 }
 
 static struct obs_source_info image_source_info = {

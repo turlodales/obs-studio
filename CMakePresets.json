@@ -1,8 +1,8 @@
 {
-  "version": 3,
+  "version": 8,
   "cmakeMinimumRequired": {
     "major": 3,
-    "minor": 22,
+    "minor": 28,
     "patch": 0
   },
   "configurePresets": [
@@ -21,6 +21,69 @@
       }
     },
     {
+      "name": "dependencies",
+      "hidden": true,
+      "vendor": {
+        "obsproject.com/obs-studio": {
+          "dependencies": {
+              "prebuilt": {
+                  "version": "2026-08-26",
+                  "baseUrl": "https://github.com/obsproject/obs-deps/releases/download",
+                  "label": "Pre-Built obs-deps",
+                  "hashes": {
+                      "macos-universal": "166560b13be8deb9a1aa7bfd306377a92c3817cecace931fe9732b9a25f0a97a",
+                      "windows-x64": "eb5e67ad110543bcb65a4612bcd654b6427972ea70d26412b48d7e21532dfe67",
+                      "windows-x86": "dc21eb9fbc5c08ea0451950e35eeeeece7537e13d1ec7115803b1b59ea96f9b2",
+                      "windows-arm64": "0648c0fd0887efcb718e437bf9c446b069a50be58e7fcd585497ad8c11644a79"
+                  }
+              },
+              "qt6": {
+                  "version": "2026-08-26",
+                  "baseUrl": "https://github.com/obsproject/obs-deps/releases/download",
+                  "label": "Pre-Built Qt6",
+                  "hashes": {
+                      "macos-universal": "1f69dcfcdd71f6e319d89736de0290a366fe5d161eae692c6818d20fdfa95c25",
+                      "windows-x64": "7dd60d2883207ecccceb2270538140fccd1b5022e06beedfbc3ba46c7d2e76ae",
+                      "windows-arm64": "a4872414b91252b1d51a3a6d98b6bdd7e3468db19a42c42978670f84eddcb888"
+                  },
+                  "debugSymbols": {
+                      "windows-x64": "c69ad24a76c7986aabff1f0e3860f4e650843dcbbcb2e6699daf63914fa888cd",
+                      "windows-arm64": "e39c0ecfdb5fb19a53623aa4914c07e02989f0320e828cc7ed7c18be6b734cc9"
+                  }
+              },
+              "cef": {
+                  "version": "6533",
+                  "baseUrl": "https://cdn-fastly.obsproject.com/downloads",
+                  "label": "Chromium Embedded Framework",
+                  "hashes": {
+                      "macos-x86_64": "37bf7571a48c5dfa8519817e4a90a3503a0eb30f9eadd68f4c3e783e363f272a",
+                      "macos-arm64": "429b50e74f6c174dcfe2f14d8204b54add497eaafe117f7b69ce6bb2354d2626",
+                      "ubuntu-x86_64": "7963335519a19ccdc5233f7334c5ab023026e2f3e9a0cc417007c09d86608146",
+                      "ubuntu-aarch64": "642514469eaa29a5c887891084d2e73f7dc2d7405f7dfa7726b2dbc24b309999",
+                      "windows-x64": "922efbda1f2f8be9e5b2754d878a14d90afc81f04e94fc9101a7513e2b5cecc1",
+                      "windows-arm64": "df9df4bd85826b4c071c6db404fd59cf93efd9c58ec3ab64e204466ae19bb02a"
+                  },
+                  "revision": {
+                      "macos-x86_64": 5,
+                      "macos-arm64": 5,
+                      "ubuntu-x86_64": 6,
+                      "ubuntu-aarch64": 6,
+                      "windows-x64": 2
+                  }
+              }
+            },
+            "tools": {
+              "sparkle": {
+                  "version": "2.9.2",
+                  "baseUrl": "https://github.com/sparkle-project/Sparkle/releases/download",
+                  "label": "Sparkle 2",
+                  "hash": "1cb340cbbef04c6c0d162078610c25e2221031d794a3449d89f2f56f4df77c95"
+              }
+            }
+          }
+        }
+    },
+    {
       "name": "macos",
       "displayName": "macOS",
       "description": "Default macOS build (single architecture only)",
@@ -33,7 +96,7 @@
       "generator": "Xcode",
       "binaryDir": "${sourceDir}/build_macos",
       "cacheVariables": {
-        "CMAKE_OSX_DEPLOYMENT_TARGET": {"type": "STRING", "value": "11.0"},
+        "CMAKE_OSX_DEPLOYMENT_TARGET": {"type": "STRING", "value": "13.0"},
         "OBS_CODESIGN_IDENTITY": {"type": "STRING", "value": "$penv{CODESIGN_IDENT}"},
         "OBS_CODESIGN_TEAM": {"type": "STRING", "value": "$penv{CODESIGN_TEAM}"},
         "OBS_PROVISIONING_PROFILE": {"type": "STRING", "value": "$penv{PROVISIONING_PROFILE}"},
@@ -52,7 +115,9 @@
       "inherits": ["macos"],
       "warnings": {"dev": true, "deprecated": true},
       "cacheVariables": {
-        "CMAKE_COMPILE_WARNING_AS_ERROR": true
+        "CMAKE_COMPILE_WARNING_AS_ERROR": true,
+        "CMAKE_XCODE_ATTRIBUTE_COMPILATION_CACHE_ENABLE_CACHING": "YES",
+        "CMAKE_XCODE_ATTRIBUTE_COMPILATION_CACHE_CAS_PATH": "$penv{XCODE_CAS_PATH}"
       }
     },
     {
@@ -71,10 +136,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_INSTALL_LIBDIR": "lib/CMAKE_SYSTEM_PROCESSOR-linux-gnu",
-        "OBS_CMAKE_VERSION": {"type": "STRING", "value": "3.0.0"},
         "ENABLE_AJA": false,
-        "ENABLE_NVENC": false,
-        "ENABLE_FFMPEG_NVENC": true,
         "ENABLE_VLC": true,
         "ENABLE_WAYLAND": true,
         "ENABLE_WEBRTC": false
@@ -85,7 +147,9 @@
       "inherits": ["ubuntu"],
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "CMAKE_COMPILE_WARNING_AS_ERROR": true
+        "CMAKE_COMPILE_WARNING_AS_ERROR": true,
+        "CMAKE_COLOR_DIAGNOSTICS": true,
+        "ENABLE_CCACHE": true
       }
     },
     {
@@ -98,14 +162,13 @@
         "lhs": "${hostSystemName}",
         "rhs": "Windows"
       },
-      "architecture": "x64",
+      "architecture": "x64,version=10.0.26100.0",
       "binaryDir": "${sourceDir}/build_x64",
-      "generator": "Visual Studio 17 2022",
+      "generator": "Visual Studio 18 2026",
       "cacheVariables": {
         "GPU_PRIORITY_VAL": {"type": "STRING", "value": "$penv{GPU_PRIORITY_VAL}"},
         "VIRTUALCAM_GUID": {"type": "STRING", "value": "A3FCE0F5-3493-419F-958A-ABA1250EC20B"},
-        "ENABLE_BROWSER": true,
-        "ENABLE_CCACHE": false
+        "ENABLE_BROWSER": true
       }
     },
     {
@@ -115,8 +178,39 @@
       "inherits": ["windows-x64"],
       "warnings": {"dev": true, "deprecated": true},
       "cacheVariables": {
-        "CMAKE_COMPILE_WARNING_AS_ERROR": true,
-        "ENABLE_CCACHE": false
+        "CMAKE_COMPILE_WARNING_AS_ERROR": true
+      }
+    },
+    {
+      "name": "windows-arm64",
+      "displayName": "Windows ARM64",
+      "description": "Default Windows build (ARM64)",
+      "inherits": ["environmentVars"],
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "architecture": "ARM64,version=10.0.26100.0",
+      "binaryDir": "${sourceDir}/build_arm64",
+      "generator": "Visual Studio 18 2026",
+      "cacheVariables": {
+        "GPU_PRIORITY_VAL": {"type": "STRING", "value": "$penv{GPU_PRIORITY_VAL}"},
+        "VIRTUALCAM_GUID": {"type": "STRING", "value": "A3FCE0F5-3493-419F-958A-ABA1250EC20B"},
+        "ENABLE_AJA": false,
+        "ENABLE_BROWSER": true,
+        "ENABLE_SCRIPTING": false,
+        "ENABLE_VST": false
+      }
+    },
+    {
+      "name": "windows-ci-arm64",
+      "displayName": "Windows ARM64 (CI)",
+      "description": "CI Windows build (ARM64)",
+      "inherits": ["windows-arm64"],
+      "warnings": {"dev": true, "deprecated": true},
+      "cacheVariables": {
+        "CMAKE_COMPILE_WARNING_AS_ERROR": true
       }
     }
   ],
@@ -126,6 +220,13 @@
       "configurePreset": "windows-x64",
       "displayName": "Windows 64-bit",
       "description": "Windows build for 64-bit (aka x64)",
+      "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "windows-arm64",
+      "configurePreset": "windows-arm64",
+      "displayName": "Windows on ARM 64-bit",
+      "description": "Windows build for ARM 64-bit (aka ARM64)",
       "configuration": "RelWithDebInfo"
     }
   ]

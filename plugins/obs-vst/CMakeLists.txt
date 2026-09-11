@@ -1,6 +1,4 @@
-cmake_minimum_required(VERSION 3.22...3.25)
-
-legacy_check()
+cmake_minimum_required(VERSION 3.28...3.30)
 
 option(ENABLE_VST "Enable building OBS with VST plugin" ON)
 
@@ -44,6 +42,8 @@ target_link_libraries(
 )
 
 if(OS_WINDOWS)
+  configure_file(cmake/windows/obs-module.rc.in obs-vst.rc)
+  target_sources(obs-vst PRIVATE obs-vst.rc)
   set_property(TARGET obs-vst APPEND PROPERTY AUTORCC_OPTIONS --format-version 1)
 endif()
 

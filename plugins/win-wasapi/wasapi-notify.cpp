@@ -10,21 +10,16 @@ class NotificationClient : public IMMNotificationClient {
 	WASAPINotifyDefaultDeviceChangedCallback cb;
 
 public:
-	NotificationClient(WASAPINotifyDefaultDeviceChangedCallback cb) : cb(cb)
-	{
-		assert(cb);
-	}
+	NotificationClient(WASAPINotifyDefaultDeviceChangedCallback cb) : cb(cb) { assert(cb); }
 
-	STDMETHODIMP_(ULONG) AddRef()
-	{
-		return (ULONG)os_atomic_inc_long(&refs);
-	}
+	STDMETHODIMP_(ULONG) AddRef() { return (ULONG)os_atomic_inc_long(&refs); }
 
 	STDMETHODIMP_(ULONG) STDMETHODCALLTYPE Release()
 	{
 		long val = os_atomic_dec_long(&refs);
-		if (val == 0)
+		if (val == 0) {
 			delete this;
+		}
 		return (ULONG)val;
 	}
 
@@ -49,16 +44,13 @@ public:
 
 	STDMETHODIMP OnDeviceStateChanged(LPCWSTR, DWORD) { return S_OK; }
 
-	STDMETHODIMP OnPropertyValueChanged(LPCWSTR, const PROPERTYKEY)
-	{
-		return S_OK;
-	}
+	STDMETHODIMP OnPropertyValueChanged(LPCWSTR, const PROPERTYKEY) { return S_OK; }
 
-	STDMETHODIMP OnDefaultDeviceChanged(EDataFlow flow, ERole role,
-					    LPCWSTR id)
+	STDMETHODIMP OnDefaultDeviceChanged(EDataFlow flow, ERole role, LPCWSTR id)
 	{
-		if (cb && id)
+		if (cb && id) {
 			cb(flow, role, id);
+		}
 
 		return S_OK;
 	}
@@ -66,17 +58,13 @@ public:
 
 WASAPINotify::WASAPINotify()
 {
-	HRESULT res = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr,
-				       CLSCTX_ALL,
-				       __uuidof(IMMDeviceEnumerator),
+	HRESULT res = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator),
 				       (LPVOID *)enumerator.Assign());
 	if (SUCCEEDED(res)) {
-		notificationClient = new NotificationClient(
-			std::bind(&WASAPINotify::OnDefaultDeviceChanged, this,
-				  std::placeholders::_1, std::placeholders::_2,
-				  std::placeholders::_3));
-		enumerator->RegisterEndpointNotificationCallback(
-			notificationClient);
+		notificationClient = new NotificationClient(std::bind(&WASAPINotify::OnDefaultDeviceChanged, this,
+								      std::placeholders::_1, std::placeholders::_2,
+								      std::placeholders::_3));
+		enumerator->RegisterEndpointNotificationCallback(notificationClient);
 	} else {
 		enumerator.Clear();
 	}
@@ -85,19 +73,18 @@ WASAPINotify::WASAPINotify()
 WASAPINotify::~WASAPINotify()
 {
 	if (enumerator) {
-		enumerator->UnregisterEndpointNotificationCallback(
-			notificationClient);
+		enumerator->UnregisterEndpointNotificationCallback(notificationClient);
 		enumerator.Clear();
 	}
 
 	notificationClient.Clear();
 }
 
-void WASAPINotify::AddDefaultDeviceChangedCallback(
-	void *handle, WASAPINotifyDefaultDeviceChangedCallback cb)
+void WASAPINotify::AddDefaultDeviceChangedCallback(void *handle, WASAPINotifyDefaultDeviceChangedCallback cb)
 {
-	if (!handle)
+	if (!handle) {
 		return;
+	}
 
 	std::lock_guard<std::mutex> l(mutex);
 	defaultDeviceChangedCallbacks[handle] = cb;
@@ -105,17 +92,18 @@ void WASAPINotify::AddDefaultDeviceChangedCallback(
 
 void WASAPINotify::RemoveDefaultDeviceChangedCallback(void *handle)
 {
-	if (!handle)
+	if (!handle) {
 		return;
+	}
 
 	std::lock_guard<std::mutex> l(mutex);
 	defaultDeviceChangedCallbacks.erase(handle);
 }
 
-void WASAPINotify::OnDefaultDeviceChanged(EDataFlow flow, ERole role,
-					  LPCWSTR id)
+void WASAPINotify::OnDefaultDeviceChanged(EDataFlow flow, ERole role, LPCWSTR id)
 {
 	std::lock_guard<std::mutex> l(mutex);
-	for (const auto &cb : defaultDeviceChangedCallbacks)
+	for (const auto &cb : defaultDeviceChangedCallbacks) {
 		cb.second(flow, role, id);
+	}
 }

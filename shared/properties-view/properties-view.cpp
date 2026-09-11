@@ -25,6 +25,9 @@
 #include <QObject>
 #include <QDesktopServices>
 #include <QUuid>
+
+#include "DoubleSpinBox.hpp"
+#include "SpinBox.hpp"
 #include "double-slider.hpp"
 #include "spinbox-ignorewheel.hpp"
 #include "moc_properties-view.cpp"
@@ -33,6 +36,7 @@
 #include <qt-wrappers.hpp>
 #include <plain-text-edit.hpp>
 #include <slider-ignorewheel.hpp>
+#include <IconLabel.hpp>
 #include <cstdlib>
 #include <initializer_list>
 #include <obs-data.h>
@@ -45,8 +49,7 @@ using namespace std;
 
 static inline QColor color_from_int(long long val)
 {
-	return QColor(val & 0xff, (val >> 8) & 0xff, (val >> 16) & 0xff,
-		      (val >> 24) & 0xff);
+	return QColor(val & 0xff, (val >> 8) & 0xff, (val >> 16) & 0xff, (val >> 24) & 0xff);
 }
 
 static inline long long color_to_int(QColor color)
@@ -55,8 +58,7 @@ static inline long long color_to_int(QColor color)
 		return ((val & 0xff) << shift);
 	};
 
-	return shift(color.red(), 0) | shift(color.green(), 8) |
-	       shift(color.blue(), 16) | shift(color.alpha(), 24);
+	return shift(color.red(), 0) | shift(color.green(), 8) | shift(color.blue(), 16) | shift(color.alpha(), 24);
 }
 
 namespace {
@@ -94,14 +96,15 @@ void OBSPropertiesView::ReloadProperties()
 	if (weakObj || rawObj) {
 		OBSObject strongObj = GetObject();
 		void *obj = strongObj ? strongObj.Get() : rawObj;
-		if (obj)
-			properties.reset(reloadCallback(obj));
+		if (obj) {
+			properties = reloadCallback(obj);
+		}
 	} else {
-		properties.reset(reloadCallback((void *)type.c_str()));
-		obs_properties_apply_settings(properties.get(), settings);
+		properties = reloadCallback((void *)type.c_str());
+		obs_properties_apply_settings(properties, settings);
 	}
 
-	uint32_t flags = obs_properties_get_flags(properties.get());
+	uint32_t flags = obs_properties_get_flags(properties);
 	deferUpdate = enableDefer && (flags & OBS_PROPERTIES_DEFER_UPDATE) != 0;
 
 	RefreshProperties();
@@ -115,8 +118,9 @@ void OBSPropertiesView::RefreshProperties()
 	GetScrollPos(h, v, hend, vend);
 
 	children.clear();
-	if (widget)
+	if (widget) {
 		widget->deleteLater();
+	}
 
 	widget = new QWidget();
 	widget->setObjectName("PropertiesContainer");
@@ -125,12 +129,11 @@ void OBSPropertiesView::RefreshProperties()
 	layout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
 	widget->setLayout(layout);
 
-	QSizePolicy mainPolicy(QSizePolicy::MinimumExpanding,
-			       QSizePolicy::MinimumExpanding);
+	QSizePolicy mainPolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
 
 	layout->setLabelAlignment(Qt::AlignRight);
 
-	obs_property_t *property = obs_properties_first(properties.get());
+	obs_property_t *property = obs_properties_first(properties);
 	bool hasNoProperties = !property;
 
 	while (property) {
@@ -144,8 +147,9 @@ void OBSPropertiesView::RefreshProperties()
 	adjustSize();
 	SetScrollPos(h, v, hend, vend);
 
-	if (disableScrolling)
+	if (disableScrolling) {
 		setMinimumHeight(widget->minimumSizeHint().height());
+	}
 
 	lastFocused.clear();
 	if (lastWidget) {
@@ -193,13 +197,10 @@ void OBSPropertiesView::GetScrollPos(int &h, int &v, int &hend, int &vend)
 	}
 }
 
-OBSPropertiesView::OBSPropertiesView(OBSData settings_, obs_object_t *obj,
-				     PropertiesReloadCallback reloadCallback,
-				     PropertiesUpdateCallback callback_,
-				     PropertiesVisualUpdateCb visUpdateCb_,
+OBSPropertiesView::OBSPropertiesView(OBSData settings_, obs_object_t *obj, PropertiesReloadCallback reloadCallback,
+				     PropertiesUpdateCallback callback_, PropertiesVisualUpdateCb visUpdateCb_,
 				     int minSize_)
 	: VScrollArea(nullptr),
-	  properties(nullptr, obs_properties_destroy),
 	  settings(settings_),
 	  weakObj(obs_object_get_weak_object(obj)),
 	  reloadCallback(reloadCallback),
@@ -208,17 +209,13 @@ OBSPropertiesView::OBSPropertiesView(OBSData settings_, obs_object_t *obj,
 	  minSize(minSize_)
 {
 	setFrameShape(QFrame::NoFrame);
-	QMetaObject::invokeMethod(this, "ReloadProperties",
-				  Qt::QueuedConnection);
+	QMetaObject::invokeMethod(this, &OBSPropertiesView::ReloadProperties, Qt::QueuedConnection);
 }
 
-OBSPropertiesView::OBSPropertiesView(OBSData settings_, void *obj,
-				     PropertiesReloadCallback reloadCallback,
-				     PropertiesUpdateCallback callback_,
-				     PropertiesVisualUpdateCb visUpdateCb_,
+OBSPropertiesView::OBSPropertiesView(OBSData settings_, void *obj, PropertiesReloadCallback reloadCallback,
+				     PropertiesUpdateCallback callback_, PropertiesVisualUpdateCb visUpdateCb_,
 				     int minSize_)
 	: VScrollArea(nullptr),
-	  properties(nullptr, obs_properties_destroy),
 	  settings(settings_),
 	  rawObj(obj),
 	  reloadCallback(reloadCallback),
@@ -227,23 +224,19 @@ OBSPropertiesView::OBSPropertiesView(OBSData settings_, void *obj,
 	  minSize(minSize_)
 {
 	setFrameShape(QFrame::NoFrame);
-	QMetaObject::invokeMethod(this, "ReloadProperties",
-				  Qt::QueuedConnection);
+	QMetaObject::invokeMethod(this, &OBSPropertiesView::ReloadProperties, Qt::QueuedConnection);
 }
 
-OBSPropertiesView::OBSPropertiesView(OBSData settings_, const char *type_,
-				     PropertiesReloadCallback reloadCallback_,
+OBSPropertiesView::OBSPropertiesView(OBSData settings_, const char *type_, PropertiesReloadCallback reloadCallback_,
 				     int minSize_)
 	: VScrollArea(nullptr),
-	  properties(nullptr, obs_properties_destroy),
 	  settings(settings_),
 	  type(type_),
 	  reloadCallback(reloadCallback_),
 	  minSize(minSize_)
 {
 	setFrameShape(QFrame::NoFrame);
-	QMetaObject::invokeMethod(this, "ReloadProperties",
-				  Qt::QueuedConnection);
+	QMetaObject::invokeMethod(this, &OBSPropertiesView::ReloadProperties, Qt::QueuedConnection);
 }
 
 void OBSPropertiesView::SetDisabled(bool disabled)
@@ -260,8 +253,7 @@ void OBSPropertiesView::resizeEvent(QResizeEvent *event)
 }
 
 template<typename Sender, typename SenderParent, typename... Args>
-QWidget *OBSPropertiesView::NewWidget(obs_property_t *prop, Sender *widget,
-				      void (SenderParent::*signal)(Args...))
+QWidget *OBSPropertiesView::NewWidget(obs_property_t *prop, Sender *widget, void (SenderParent::*signal)(Args...))
 {
 	const char *long_desc = obs_property_long_description(prop);
 
@@ -277,19 +269,46 @@ QWidget *OBSPropertiesView::AddCheckbox(obs_property_t *prop)
 {
 	const char *name = obs_property_name(prop);
 	const char *desc = obs_property_description(prop);
+	const char *long_desc = obs_property_long_description(prop);
 	bool val = obs_data_get_bool(settings, name);
 
 	QCheckBox *checkbox = new QCheckBox(QT_UTF8(desc));
 	checkbox->setCheckState(val ? Qt::Checked : Qt::Unchecked);
+
 #if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
-	return NewWidget(prop, checkbox, &QCheckBox::checkStateChanged);
+	QWidget *widget = NewWidget(prop, checkbox, &QCheckBox::checkStateChanged);
 #else
-	return NewWidget(prop, checkbox, &QCheckBox::stateChanged);
+	QWidget *widget = NewWidget(prop, checkbox, &QCheckBox::stateChanged);
 #endif
+
+	if (!long_desc) {
+		return widget;
+	}
+
+	QString file = !obs_frontend_is_theme_dark() ? ":/res/images/help.svg" : ":/res/images/help_light.svg";
+
+	IconLabel *help = new IconLabel(checkbox);
+	help->setIcon(QIcon(file));
+	help->setToolTip(long_desc);
+
+#ifdef __APPLE__
+	checkbox->setAttribute(Qt::WA_LayoutUsesWidgetRect);
+#endif
+
+	widget = new QWidget();
+	QHBoxLayout *layout = new QHBoxLayout(widget);
+	layout->setContentsMargins(0, 0, 0, 0);
+	layout->setAlignment(Qt::AlignLeft);
+	layout->setSpacing(0);
+
+	layout->addWidget(checkbox);
+	layout->addWidget(help);
+	widget->setLayout(layout);
+
+	return widget;
 }
 
-QWidget *OBSPropertiesView::AddText(obs_property_t *prop, QFormLayout *layout,
-				    QLabel *&label)
+QWidget *OBSPropertiesView::AddText(obs_property_t *prop, QFormLayout *layout, QLabel *&label)
 {
 	const char *name = obs_property_name(prop);
 	const char *val = obs_data_get_string(settings, name);
@@ -316,11 +335,9 @@ QWidget *OBSPropertiesView::AddText(obs_property_t *prop, QFormLayout *layout,
 		subLayout->addWidget(show);
 
 		WidgetInfo *info = new WidgetInfo(this, prop, edit);
-		connect(show, &QAbstractButton::toggled, info,
-			&WidgetInfo::TogglePasswordText);
-		connect(show, &QAbstractButton::toggled, [=](bool hide) {
-			show->setText(hide ? tr("Hide") : tr("Show"));
-		});
+		connect(show, &QAbstractButton::toggled, info, &WidgetInfo::TogglePasswordText);
+		connect(show, &QAbstractButton::toggled, show,
+			[=](bool hide) { show->setText(hide ? tr("Hide") : tr("Show")); });
 		children.emplace_back(info);
 
 		label = new QLabel(QT_UTF8(obs_property_description(prop)));
@@ -328,27 +345,25 @@ QWidget *OBSPropertiesView::AddText(obs_property_t *prop, QFormLayout *layout,
 
 		edit->setToolTip(QT_UTF8(obs_property_long_description(prop)));
 
-		connect(edit, &QLineEdit::textEdited, info,
-			&WidgetInfo::ControlChanged);
+		connect(edit, &QLineEdit::textEdited, info, &WidgetInfo::ControlChanged);
 		return nullptr;
 	} else if (type == OBS_TEXT_INFO) {
 		QString desc = QT_UTF8(obs_property_description(prop));
 		const char *long_desc = obs_property_long_description(prop);
-		obs_text_info_type info_type =
-			obs_property_text_info_type(prop);
+		obs_text_info_type info_type = obs_property_text_info_type(prop);
 
 		QLabel *info_label = new QLabel(QT_UTF8(val));
 
 		if (info_label->text().isEmpty() && long_desc == NULL) {
 			label = nullptr;
 			info_label->setText(desc);
-		} else
+		} else {
 			label = new QLabel(desc);
+		}
 
 		if (long_desc != NULL && !info_label->text().isEmpty()) {
-			QString file = !obs_frontend_is_theme_dark()
-					       ? ":/res/images/help.svg"
-					       : ":/res/images/help_light.svg";
+			QString file = !obs_frontend_is_theme_dark() ? ":/res/images/help.svg"
+								     : ":/res/images/help_light.svg";
 			QString lStr = "<html>%1 <img src='%2' style=' \
 				vertical-align: bottom; ' /></html>";
 
@@ -361,13 +376,15 @@ QWidget *OBSPropertiesView::AddText(obs_property_t *prop, QFormLayout *layout,
 		info_label->setOpenExternalLinks(true);
 		info_label->setWordWrap(obs_property_text_info_word_wrap(prop));
 
-		if (info_type == OBS_TEXT_INFO_WARNING)
-			info_label->setObjectName("warningLabel");
-		else if (info_type == OBS_TEXT_INFO_ERROR)
-			info_label->setObjectName("errorLabel");
+		if (info_type == OBS_TEXT_INFO_WARNING) {
+			info_label->setProperty("class", "text-warning");
+		} else if (info_type == OBS_TEXT_INFO_ERROR) {
+			info_label->setProperty("class", "text-danger");
+		}
 
-		if (label)
+		if (label) {
 			label->setObjectName(info_label->objectName());
+		}
 
 		WidgetInfo *info = new WidgetInfo(this, prop, info_label);
 		children.emplace_back(info);
@@ -385,8 +402,7 @@ QWidget *OBSPropertiesView::AddText(obs_property_t *prop, QFormLayout *layout,
 	return NewWidget(prop, edit, &QLineEdit::textEdited);
 }
 
-void OBSPropertiesView::AddPath(obs_property_t *prop, QFormLayout *layout,
-				QLabel **label)
+void OBSPropertiesView::AddPath(obs_property_t *prop, QFormLayout *layout, QLabel **label)
 {
 	const char *name = obs_property_name(prop);
 	const char *val = obs_data_get_string(settings, name);
@@ -399,7 +415,6 @@ void OBSPropertiesView::AddPath(obs_property_t *prop, QFormLayout *layout,
 		button->setEnabled(false);
 	}
 
-	button->setProperty("themeID", "settingsButtons");
 	edit->setText(QT_UTF8(val));
 	edit->setReadOnly(true);
 	edit->setToolTip(QT_UTF8(obs_property_long_description(prop)));
@@ -408,23 +423,21 @@ void OBSPropertiesView::AddPath(obs_property_t *prop, QFormLayout *layout,
 	subLayout->addWidget(button);
 
 	WidgetInfo *info = new WidgetInfo(this, prop, edit);
-	connect(button, &QPushButton::clicked, info,
-		&WidgetInfo::ControlChanged);
+	connect(button, &QPushButton::clicked, info, &WidgetInfo::ControlChanged);
 	children.emplace_back(info);
 
 	*label = new QLabel(QT_UTF8(obs_property_description(prop)));
 	layout->addRow(*label, subLayout);
 }
 
-void OBSPropertiesView::AddInt(obs_property_t *prop, QFormLayout *layout,
-			       QLabel **label)
+void OBSPropertiesView::AddInt(obs_property_t *prop, QFormLayout *layout, QLabel **label)
 {
 	obs_number_type type = obs_property_int_type(prop);
 	QLayout *subLayout = new QHBoxLayout();
 
 	const char *name = obs_property_name(prop);
 	int val = (int)obs_data_get_int(settings, name);
-	QSpinBox *spin = new SpinBoxIgnoreScroll();
+	OBS::SpinBox *spin = new OBS::SpinBox();
 
 	spin->setEnabled(obs_property_enabled(prop));
 
@@ -453,14 +466,11 @@ void OBSPropertiesView::AddInt(obs_property_t *prop, QFormLayout *layout,
 		slider->setEnabled(obs_property_enabled(prop));
 		subLayout->addWidget(slider);
 
-		connect(slider, &QSlider::valueChanged, spin,
-			&QSpinBox::setValue);
-		connect(spin, &QSpinBox::valueChanged, slider,
-			&QSlider::setValue);
+		connect(slider, &QSlider::valueChanged, spin, &QSpinBox::setValue);
+		connect(spin, &QSpinBox::valueChanged, slider, &QSlider::setValue);
 	}
 
-	connect(spin, &QSpinBox::valueChanged, info,
-		&WidgetInfo::ControlChanged);
+	connect(spin, &QSpinBox::valueChanged, info, &WidgetInfo::ControlChanged);
 
 	subLayout->addWidget(spin);
 
@@ -468,18 +478,18 @@ void OBSPropertiesView::AddInt(obs_property_t *prop, QFormLayout *layout,
 	layout->addRow(*label, subLayout);
 }
 
-void OBSPropertiesView::AddFloat(obs_property_t *prop, QFormLayout *layout,
-				 QLabel **label)
+void OBSPropertiesView::AddFloat(obs_property_t *prop, QFormLayout *layout, QLabel **label)
 {
 	obs_number_type type = obs_property_float_type(prop);
 	QLayout *subLayout = new QHBoxLayout();
 
 	const char *name = obs_property_name(prop);
 	double val = obs_data_get_double(settings, name);
-	QDoubleSpinBox *spin = new QDoubleSpinBox();
+	OBS::DoubleSpinBox *spin = new OBS::DoubleSpinBox();
 
-	if (!obs_property_enabled(prop))
+	if (!obs_property_enabled(prop)) {
 		spin->setEnabled(false);
+	}
 
 	double minVal = obs_property_float_min(prop);
 	double maxVal = obs_property_float_max(prop);
@@ -488,10 +498,10 @@ void OBSPropertiesView::AddFloat(obs_property_t *prop, QFormLayout *layout,
 
 	if (stepVal < 1.0) {
 		constexpr int sane_limit = 8;
-		const int decimals =
-			std::min<int>(log10(1.0 / stepVal) + 0.99, sane_limit);
-		if (decimals > spin->decimals())
+		const int decimals = std::min<int>(log10(1.0 / stepVal) + 0.99, sane_limit);
+		if (decimals > spin->decimals()) {
 			spin->setDecimals(decimals);
+		}
 	}
 
 	spin->setMinimum(minVal);
@@ -510,14 +520,11 @@ void OBSPropertiesView::AddFloat(obs_property_t *prop, QFormLayout *layout,
 		slider->setOrientation(Qt::Horizontal);
 		subLayout->addWidget(slider);
 
-		connect(slider, &DoubleSlider::doubleValChanged, spin,
-			&QDoubleSpinBox::setValue);
-		connect(spin, &QDoubleSpinBox::valueChanged, slider,
-			&DoubleSlider::setDoubleVal);
+		connect(slider, &DoubleSlider::doubleValChanged, spin, &OBS::DoubleSpinBox::setValue);
+		connect(spin, &OBS::DoubleSpinBox::valueChanged, slider, &DoubleSlider::setDoubleVal);
 	}
 
-	connect(spin, &QDoubleSpinBox::valueChanged, info,
-		&WidgetInfo::ControlChanged);
+	connect(spin, &QDoubleSpinBox::valueChanged, info, &WidgetInfo::ControlChanged);
 
 	subLayout->addWidget(spin);
 
@@ -552,24 +559,26 @@ static void AddComboItem(QComboBox *combo, obs_property_t *prop, size_t idx)
 
 	combo->addItem(QT_UTF8(name), var);
 
-	if (!obs_property_list_item_disabled(prop, idx))
+	if (!obs_property_list_item_disabled(prop, idx)) {
 		return;
+	}
 
 	int index = combo->findText(QT_UTF8(name));
-	if (index < 0)
+	if (index < 0) {
 		return;
+	}
 
-	QStandardItemModel *model =
-		dynamic_cast<QStandardItemModel *>(combo->model());
-	if (!model)
+	QStandardItemModel *model = dynamic_cast<QStandardItemModel *>(combo->model());
+	if (!model) {
 		return;
+	}
 
 	QStandardItem *item = model->item(index);
 	item->setFlags(Qt::NoItemFlags);
 }
 
-static void AddRadioItem(QButtonGroup *buttonGroup, QFormLayout *layout,
-			 obs_property_t *prop, QVariant value, size_t idx)
+static void AddRadioItem(QButtonGroup *buttonGroup, QFormLayout *layout, obs_property_t *prop, QVariant value,
+			 size_t idx)
 {
 	const char *name = obs_property_list_item_name(prop, idx);
 
@@ -581,13 +590,12 @@ static void AddRadioItem(QButtonGroup *buttonGroup, QFormLayout *layout,
 	layout->addRow(button);
 }
 
-template<long long get_int(obs_data_t *, const char *),
-	 double get_double(obs_data_t *, const char *),
-	 const char *get_string(obs_data_t *, const char *),
-	 bool get_bool(obs_data_t *, const char *)>
-static QVariant from_obs_data(obs_data_t *data, const char *name,
-			      obs_combo_format format)
+template<long long get_int(obs_data_t *, const char *), double get_double(obs_data_t *, const char *),
+	 const char *get_string(obs_data_t *, const char *), bool get_bool(obs_data_t *, const char *)>
+static QVariant from_obs_data(obs_data_t *data, const char *name, obs_combo_format format)
 {
+	PRAGMA_WARN_PUSH
+	PRAGMA_DISABLE_DEPRECATION
 	switch (format) {
 	case OBS_COMBO_FORMAT_INT:
 		return QVariant::fromValue(get_int(data, name));
@@ -600,23 +608,22 @@ static QVariant from_obs_data(obs_data_t *data, const char *name,
 	default:
 		return QVariant();
 	}
+	PRAGMA_WARN_POP
 }
 
-static QVariant from_obs_data(obs_data_t *data, const char *name,
-			      obs_combo_format format)
+static QVariant from_obs_data(obs_data_t *data, const char *name, obs_combo_format format)
 {
-	return from_obs_data<obs_data_get_int, obs_data_get_double,
-			     obs_data_get_string, obs_data_get_bool>(data, name,
-								     format);
+	return from_obs_data<obs_data_get_int, obs_data_get_double, obs_data_get_string, obs_data_get_bool>(data, name,
+													    format);
 }
 
-static QVariant from_obs_data_autoselect(obs_data_t *data, const char *name,
-					 obs_combo_format format)
+static QVariant from_obs_data_autoselect(obs_data_t *data, const char *name, obs_combo_format format)
 {
-	return from_obs_data<
-		obs_data_get_autoselect_int, obs_data_get_autoselect_double,
-		obs_data_get_autoselect_string, obs_data_get_autoselect_bool>(
-		data, name, format);
+	PRAGMA_WARN_PUSH
+	PRAGMA_DISABLE_DEPRECATION
+	return from_obs_data<obs_data_get_autoselect_int, obs_data_get_autoselect_double,
+			     obs_data_get_autoselect_string, obs_data_get_autoselect_bool>(data, name, format);
+	PRAGMA_WARN_POP
 }
 
 QWidget *OBSPropertiesView::AddList(obs_property_t *prop, bool &warning)
@@ -633,16 +640,15 @@ QWidget *OBSPropertiesView::AddList(obs_property_t *prop, bool &warning)
 		QFormLayout *subLayout = new QFormLayout();
 		subLayout->setContentsMargins(0, 0, 0, 0);
 
-		for (size_t idx = 0; idx < count; idx++)
+		for (size_t idx = 0; idx < count; idx++) {
 			AddRadioItem(buttonGroup, subLayout, prop, value, idx);
+		}
 
 		if (count > 0) {
 			buttonGroup->setExclusive(true);
-			WidgetInfo *info = new WidgetInfo(
-				this, prop, buttonGroup->buttons()[0]);
+			WidgetInfo *info = new WidgetInfo(this, prop, buttonGroup->buttons()[0]);
 			children.emplace_back(info);
-			connect(buttonGroup, &QButtonGroup::buttonClicked, info,
-				&WidgetInfo::ControlChanged);
+			connect(buttonGroup, &QButtonGroup::buttonClicked, info, &WidgetInfo::ControlChanged);
 		}
 
 		QWidget *widget = new QWidget();
@@ -653,82 +659,82 @@ QWidget *OBSPropertiesView::AddList(obs_property_t *prop, bool &warning)
 	int idx = -1;
 
 	QComboBox *combo = new QComboBox();
-	for (size_t i = 0; i < count; i++)
+	for (size_t i = 0; i < count; i++) {
 		AddComboItem(combo, prop, i);
+	}
 
-	if (type == OBS_COMBO_TYPE_EDITABLE)
+	if (type == OBS_COMBO_TYPE_EDITABLE) {
 		combo->setEditable(true);
+	}
 
 	combo->setMaxVisibleItems(40);
 	combo->setToolTip(QT_UTF8(obs_property_long_description(prop)));
 
-	if (format == OBS_COMBO_FORMAT_STRING &&
-	    type == OBS_COMBO_TYPE_EDITABLE) {
+	if (format == OBS_COMBO_FORMAT_STRING && type == OBS_COMBO_TYPE_EDITABLE) {
 		combo->lineEdit()->setText(value.toString());
 	} else {
 		idx = combo->findData(value);
 	}
 
-	if (type == OBS_COMBO_TYPE_EDITABLE)
+	if (type == OBS_COMBO_TYPE_EDITABLE) {
 		return NewWidget(prop, combo, &QComboBox::editTextChanged);
+	}
 
-	if (idx != -1)
+	if (idx != -1) {
 		combo->setCurrentIndex(idx);
+	}
 
+	PRAGMA_WARN_PUSH
+	PRAGMA_DISABLE_DEPRECATION
 	if (obs_data_has_autoselect_value(settings, name)) {
-		QVariant autoselect =
-			from_obs_data_autoselect(settings, name, format);
+		QVariant autoselect = from_obs_data_autoselect(settings, name, format);
+		PRAGMA_WARN_POP
 		int id = combo->findData(autoselect);
 
 		if (id != -1 && id != idx) {
 			QString actual = combo->itemText(id);
 			QString selected = combo->itemText(idx);
-			QString combined =
-				tr("Basic.PropertiesWindow.AutoSelectFormat");
-			combo->setItemText(idx,
-					   combined.arg(selected).arg(actual));
+			QString combined = tr("Basic.PropertiesWindow.AutoSelectFormat");
+			combo->setItemText(idx, combined.arg(selected).arg(actual));
 		}
 	}
 
 	QAbstractItemModel *model = combo->model();
-	warning = idx != -1 &&
-		  model->flags(model->index(idx, 0)) == Qt::NoItemFlags;
+	warning = idx != -1 && model->flags(model->index(idx, 0)) == Qt::NoItemFlags;
 
 	WidgetInfo *info = new WidgetInfo(this, prop, combo);
-	connect(combo, &QComboBox::currentIndexChanged, info,
-		&WidgetInfo::ControlChanged);
+	connect(combo, &QComboBox::currentIndexChanged, info, &WidgetInfo::ControlChanged);
 	children.emplace_back(info);
 
 	/* trigger a settings update if the index was not found */
-	if (count && idx == -1)
+	if (count && idx == -1) {
 		info->ControlChanged();
+	}
 
 	return combo;
 }
 
-static void NewButton(QLayout *layout, WidgetInfo *info, const char *themeIcon,
-		      void (WidgetInfo::*method)())
+static void NewButton(QLayout *layout, WidgetInfo *info, const char *themeIcon, void (WidgetInfo::*method)())
 {
 	QPushButton *button = new QPushButton();
-	button->setProperty("themeID", themeIcon);
+	button->setProperty("class", "btn-tool " + QString(themeIcon));
 	button->setFlat(true);
-	button->setProperty("toolButton", true);
 
 	QObject::connect(button, &QPushButton::clicked, info, method);
 
 	layout->addWidget(button);
 }
 
-void OBSPropertiesView::AddEditableList(obs_property_t *prop,
-					QFormLayout *layout, QLabel *&label)
+void OBSPropertiesView::AddEditableList(obs_property_t *prop, QFormLayout *layout, QLabel *&label)
 {
 	const char *name = obs_property_name(prop);
 	OBSDataArrayAutoRelease array = obs_data_get_array(settings, name);
 	QListWidget *list = new QListWidget();
 	size_t count = obs_data_array_count(array);
 
-	if (!obs_property_enabled(prop))
+	if (!obs_property_enabled(prop)) {
 		list->setEnabled(false);
+	}
 
 	list->setSortingEnabled(false);
 	list->setSelectionMode(QAbstractItemView::ExtendedSelection);
@@ -744,9 +750,8 @@ void OBSPropertiesView::AddEditableList(obs_property_t *prop,
 		QString uuid = QT_UTF8(obs_data_get_string(item, "uuid"));
 		/* for backwards compatibility */
 		if (uuid.isEmpty()) {
-			uuid = QUuid::createUuid().toString(
-				QUuid::WithoutBraces);
-			obs_data_set_string(item, "uuid", uuid.toUtf8());
+			uuid = QUuid::createUuid().toString(QUuid::WithoutBraces);
+			obs_data_set_string(item, "uuid", QT_TO_UTF8(uuid));
 		}
 		list_item->setData(Qt::UserRole, uuid);
 	}
@@ -754,19 +759,14 @@ void OBSPropertiesView::AddEditableList(obs_property_t *prop,
 	WidgetInfo *info = new WidgetInfo(this, prop, list);
 
 	list->setDragDropMode(QAbstractItemView::InternalMove);
-	connect(list->model(), &QAbstractItemModel::rowsMoved,
-		[info]() { info->EditableListChanged(); });
+	connect(list->model(), &QAbstractItemModel::rowsMoved, info, [info]() { info->EditableListChanged(); });
 
 	QVBoxLayout *sideLayout = new QVBoxLayout();
-	NewButton(sideLayout, info, "addIconSmall", &WidgetInfo::EditListAdd);
-	NewButton(sideLayout, info, "removeIconSmall",
-		  &WidgetInfo::EditListRemove);
-	NewButton(sideLayout, info, "configIconSmall",
-		  &WidgetInfo::EditListEdit);
-	NewButton(sideLayout, info, "upArrowIconSmall",
-		  &WidgetInfo::EditListUp);
-	NewButton(sideLayout, info, "downArrowIconSmall",
-		  &WidgetInfo::EditListDown);
+	NewButton(sideLayout, info, "icon-plus", &WidgetInfo::EditListAdd);
+	NewButton(sideLayout, info, "icon-trash", &WidgetInfo::EditListRemove);
+	NewButton(sideLayout, info, "icon-gear", &WidgetInfo::EditListEdit);
+	NewButton(sideLayout, info, "icon-up", &WidgetInfo::EditListUp);
+	NewButton(sideLayout, info, "icon-down", &WidgetInfo::EditListDown);
 	sideLayout->addStretch(0);
 
 	QHBoxLayout *subLayout = new QHBoxLayout();
@@ -784,14 +784,11 @@ QWidget *OBSPropertiesView::AddButton(obs_property_t *prop)
 	const char *desc = obs_property_description(prop);
 
 	QPushButton *button = new QPushButton(QT_UTF8(desc));
-	button->setProperty("themeID", "settingsButtons");
 	button->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum);
 	return NewWidget(prop, button, &QPushButton::clicked);
 }
 
-void OBSPropertiesView::AddColorInternal(obs_property_t *prop,
-					 QFormLayout *layout, QLabel *&label,
-					 bool supportAlpha)
+void OBSPropertiesView::AddColorInternal(obs_property_t *prop, QFormLayout *layout, QLabel *&label, bool supportAlpha)
 {
 	QPushButton *button = new QPushButton;
 	QLabel *colorLabel = new QLabel;
@@ -805,7 +802,6 @@ void OBSPropertiesView::AddColorInternal(obs_property_t *prop,
 		colorLabel->setEnabled(false);
 	}
 
-	button->setProperty("themeID", "settingsButtons");
 	button->setText(tr("Basic.PropertiesWindow.SelectColor"));
 	button->setToolTip(QT_UTF8(obs_property_long_description(prop)));
 
@@ -820,10 +816,9 @@ void OBSPropertiesView::AddColorInternal(obs_property_t *prop,
 	colorLabel->setFrameStyle(QFrame::Sunken | QFrame::Panel);
 	colorLabel->setText(color.name(format));
 	colorLabel->setPalette(palette);
-	colorLabel->setStyleSheet(
-		QString("background-color :%1; color: %2;")
-			.arg(palette.color(QPalette::Window).name(format))
-			.arg(palette.color(QPalette::WindowText).name(format)));
+	colorLabel->setStyleSheet(QString("background-color :%1; color: %2;")
+					  .arg(palette.color(QPalette::Window).name(format))
+					  .arg(palette.color(QPalette::WindowText).name(format)));
 	colorLabel->setAutoFillBackground(true);
 	colorLabel->setAlignment(Qt::AlignCenter);
 	colorLabel->setToolTip(QT_UTF8(obs_property_long_description(prop)));
@@ -835,22 +830,19 @@ void OBSPropertiesView::AddColorInternal(obs_property_t *prop,
 	subLayout->addWidget(button);
 
 	WidgetInfo *info = new WidgetInfo(this, prop, colorLabel);
-	connect(button, &QPushButton::clicked, info,
-		&WidgetInfo::ControlChanged);
+	connect(button, &QPushButton::clicked, info, &WidgetInfo::ControlChanged);
 	children.emplace_back(info);
 
 	label = new QLabel(QT_UTF8(obs_property_description(prop)));
 	layout->addRow(label, subLayout);
 }
 
-void OBSPropertiesView::AddColor(obs_property_t *prop, QFormLayout *layout,
-				 QLabel *&label)
+void OBSPropertiesView::AddColor(obs_property_t *prop, QFormLayout *layout, QLabel *&label)
 {
 	AddColorInternal(prop, layout, label, false);
 }
 
-void OBSPropertiesView::AddColorAlpha(obs_property_t *prop, QFormLayout *layout,
-				      QLabel *&label)
+void OBSPropertiesView::AddColorAlpha(obs_property_t *prop, QFormLayout *layout, QLabel *&label)
 {
 	AddColorInternal(prop, layout, label, true);
 }
@@ -870,26 +862,31 @@ void MakeQFont(obs_data_t *font_obj, QFont &font, bool limit = false)
 	if (size) {
 		if (limit) {
 			int max_size = font.pointSize();
-			if (max_size < 28)
+			if (max_size < 28) {
 				max_size = 28;
-			if (size > max_size)
+			}
+			if (size > max_size) {
 				size = max_size;
+			}
 		}
 		font.setPointSize(size);
 	}
 
-	if (flags & OBS_FONT_BOLD)
+	if (flags & OBS_FONT_BOLD) {
 		font.setBold(true);
-	if (flags & OBS_FONT_ITALIC)
+	}
+	if (flags & OBS_FONT_ITALIC) {
 		font.setItalic(true);
-	if (flags & OBS_FONT_UNDERLINE)
+	}
+	if (flags & OBS_FONT_UNDERLINE) {
 		font.setUnderline(true);
-	if (flags & OBS_FONT_STRIKEOUT)
+	}
+	if (flags & OBS_FONT_STRIKEOUT) {
 		font.setStrikeOut(true);
+	}
 }
 
-void OBSPropertiesView::AddFont(obs_property_t *prop, QFormLayout *layout,
-				QLabel *&label)
+void OBSPropertiesView::AddFont(obs_property_t *prop, QFormLayout *layout, QLabel *&label)
 {
 	const char *name = obs_property_name(prop);
 	OBSDataAutoRelease font_obj = obs_data_get_obj(settings, name);
@@ -907,7 +904,6 @@ void OBSPropertiesView::AddFont(obs_property_t *prop, QFormLayout *layout,
 	font = fontLabel->font();
 	MakeQFont(font_obj, font, true);
 
-	button->setProperty("themeID", "settingsButtons");
 	button->setText(tr("Basic.PropertiesWindow.SelectFont"));
 	button->setToolTip(QT_UTF8(obs_property_long_description(prop)));
 
@@ -924,8 +920,7 @@ void OBSPropertiesView::AddFont(obs_property_t *prop, QFormLayout *layout,
 	subLayout->addWidget(button);
 
 	WidgetInfo *info = new WidgetInfo(this, prop, fontLabel);
-	connect(button, &QPushButton::clicked, info,
-		&WidgetInfo::ControlChanged);
+	connect(button, &QPushButton::clicked, info, &WidgetInfo::ControlChanged);
 	children.emplace_back(info);
 
 	label = new QLabel(QT_UTF8(obs_property_description(prop)));
@@ -949,9 +944,7 @@ template<typename T> static double make_epsilon(T val)
 	return val * 0.00001;
 }
 
-static bool matches_range(media_frames_per_second &match,
-			  media_frames_per_second fps,
-			  const frame_rate_range_t &pair)
+static bool matches_range(media_frames_per_second &match, media_frames_per_second fps, const frame_rate_range_t &pair)
 {
 	auto val = media_frames_per_second_to_frame_interval(fps);
 	auto max_ = media_frames_per_second_to_frame_interval(pair.first);
@@ -965,10 +958,8 @@ static bool matches_range(media_frames_per_second &match,
 	return false;
 }
 
-static bool matches_ranges(media_frames_per_second &best_match,
-			   media_frames_per_second fps,
-			   const frame_rate_ranges_t &fps_ranges,
-			   bool exact = false)
+static bool matches_ranges(media_frames_per_second &best_match, media_frames_per_second fps,
+			   const frame_rate_ranges_t &fps_ranges, bool exact = false)
 {
 	auto convert_fn = media_frames_per_second_to_frame_interval;
 	auto val = convert_fn(fps);
@@ -986,11 +977,13 @@ static bool matches_ranges(media_frames_per_second &best_match,
 				fabsl(min_ - val) < epsilon ? "true" :
 				"false");*/
 
-		if (matches_range(best_match, fps, pair))
+		if (matches_range(best_match, fps, pair)) {
 			return true;
+		}
 
-		if (exact)
+		if (exact) {
 			continue;
+		}
 
 		auto min_dist = fabsl(min_ - val);
 		auto max_dist = fabsl(max_ - val);
@@ -1019,17 +1012,13 @@ static media_frames_per_second make_fps(uint32_t num, uint32_t den)
 }
 
 static const common_frame_rate common_fps[] = {
-	{"240", {240, 1}},         {"144", {144, 1}},
-	{"120", {120, 1}},         {"119.88", {120000, 1001}},
-	{"60", {60, 1}},           {"59.94", {60000, 1001}},
-	{"50", {50, 1}},           {"48", {48, 1}},
-	{"30", {30, 1}},           {"29.97", {30000, 1001}},
-	{"25", {25, 1}},           {"24", {24, 1}},
+	{"240", {240, 1}},         {"144", {144, 1}},        {"120", {120, 1}}, {"119.88", {120000, 1001}},
+	{"60", {60, 1}},           {"59.94", {60000, 1001}}, {"50", {50, 1}},   {"48", {48, 1}},
+	{"30", {30, 1}},           {"29.97", {30000, 1001}}, {"25", {25, 1}},   {"24", {24, 1}},
 	{"23.976", {24000, 1001}},
 };
 
-static void UpdateSimpleFPSSelection(OBSFrameRatePropertyWidget *fpsProps,
-				     const media_frames_per_second *current_fps)
+static void UpdateSimpleFPSSelection(OBSFrameRatePropertyWidget *fpsProps, const media_frames_per_second *current_fps)
 {
 	if (!current_fps || !media_frames_per_second_is_valid(*current_fps)) {
 		fpsProps->simpleFPS->setCurrentIndex(0);
@@ -1040,12 +1029,14 @@ static void UpdateSimpleFPSSelection(OBSFrameRatePropertyWidget *fpsProps,
 	auto num = combo->count();
 	for (int i = 0; i < num; i++) {
 		auto variant = combo->itemData(i);
-		if (!variant.canConvert<media_frames_per_second>())
+		if (!variant.canConvert<media_frames_per_second>()) {
 			continue;
+		}
 
 		auto fps = variant.value<media_frames_per_second>();
-		if (fps != *current_fps)
+		if (fps != *current_fps) {
 			continue;
+		}
 
 		combo->setCurrentIndex(i);
 		return;
@@ -1054,8 +1045,7 @@ static void UpdateSimpleFPSSelection(OBSFrameRatePropertyWidget *fpsProps,
 	combo->setCurrentIndex(0);
 }
 
-static void AddFPSRanges(vector<common_frame_rate> &items,
-			 const frame_rate_ranges_t &ranges)
+static void AddFPSRanges(vector<common_frame_rate> &items, const frame_rate_ranges_t &ranges)
 {
 	auto InsertFPS = [&](media_frames_per_second fps) {
 		auto fps_val = media_frames_per_second_to_fps(fps);
@@ -1064,11 +1054,13 @@ static void AddFPSRanges(vector<common_frame_rate> &items,
 		auto i = begin(items);
 		for (; i != end_; i++) {
 			auto i_fps_val = media_frames_per_second_to_fps(i->fps);
-			if (fabsl(i_fps_val - fps_val) < 0.01)
+			if (fabsl(i_fps_val - fps_val) < 0.01) {
 				return;
+			}
 
-			if (i_fps_val > fps_val)
+			if (i_fps_val > fps_val) {
 				continue;
+			}
 
 			break;
 		}
@@ -1082,9 +1074,8 @@ static void AddFPSRanges(vector<common_frame_rate> &items,
 	}
 }
 
-static QWidget *
-CreateSimpleFPSValues(OBSFrameRatePropertyWidget *fpsProps, bool &selected,
-		      const media_frames_per_second *current_fps)
+static QWidget *CreateSimpleFPSValues(OBSFrameRatePropertyWidget *fpsProps, bool &selected,
+				      const media_frames_per_second *current_fps)
 {
 	auto widget = new QWidget{};
 	widget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -1100,8 +1091,9 @@ CreateSimpleFPSValues(OBSFrameRatePropertyWidget *fpsProps, bool &selected,
 	combo->addItem("", QVariant::fromValue(make_fps(0, 0)));
 	for (const auto &fps : common_fps) {
 		media_frames_per_second best_match{};
-		if (!matches_ranges(best_match, fps.fps, fpsProps->fps_ranges))
+		if (!matches_ranges(best_match, fps.fps, fpsProps->fps_ranges)) {
 			continue;
+		}
 
 		items.push_back({fps.fps_name, best_match});
 	}
@@ -1110,11 +1102,8 @@ CreateSimpleFPSValues(OBSFrameRatePropertyWidget *fpsProps, bool &selected,
 
 	for (const auto &item : items) {
 		auto var = QVariant::fromValue(item.fps);
-		auto name = item.fps_name
-				    ? QString(item.fps_name)
-				    : QString("%1").arg(
-					      media_frames_per_second_to_fps(
-						      item.fps));
+		auto name = item.fps_name ? QString(item.fps_name)
+					  : QString("%1").arg(media_frames_per_second_to_fps(item.fps));
 		combo->addItem(name, var);
 
 		bool select = current_fps && *current_fps == item.fps;
@@ -1130,8 +1119,7 @@ CreateSimpleFPSValues(OBSFrameRatePropertyWidget *fpsProps, bool &selected,
 	return widget;
 }
 
-static void UpdateRationalFPSWidgets(OBSFrameRatePropertyWidget *fpsProps,
-				     const media_frames_per_second *current_fps)
+static void UpdateRationalFPSWidgets(OBSFrameRatePropertyWidget *fpsProps, const media_frames_per_second *current_fps)
 {
 	if (!current_fps || !media_frames_per_second_is_valid(*current_fps)) {
 		fpsProps->numEdit->setValue(0);
@@ -1143,17 +1131,19 @@ static void UpdateRationalFPSWidgets(OBSFrameRatePropertyWidget *fpsProps,
 	auto num = combo->count();
 	for (int i = 0; i < num; i++) {
 		auto variant = combo->itemData(i);
-		if (!variant.canConvert<size_t>())
+		if (!variant.canConvert<size_t>()) {
 			continue;
+		}
 
 		auto idx = variant.value<size_t>();
-		if (fpsProps->fps_ranges.size() < idx)
+		if (fpsProps->fps_ranges.size() < idx) {
 			continue;
+		}
 
 		media_frames_per_second match{};
-		if (!matches_range(match, *current_fps,
-				   fpsProps->fps_ranges[idx]))
+		if (!matches_range(match, *current_fps, fpsProps->fps_ranges[idx])) {
 			continue;
+		}
 
 		combo->setCurrentIndex(i);
 		break;
@@ -1163,8 +1153,7 @@ static void UpdateRationalFPSWidgets(OBSFrameRatePropertyWidget *fpsProps,
 	fpsProps->denEdit->setValue(current_fps->denominator);
 }
 
-static QWidget *CreateRationalFPS(OBSFrameRatePropertyWidget *fpsProps,
-				  bool &selected,
+static QWidget *CreateRationalFPS(OBSFrameRatePropertyWidget *fpsProps, bool &selected,
 				  const media_frames_per_second *current_fps)
 {
 	auto widget = new QWidget{};
@@ -1183,14 +1172,13 @@ static QWidget *CreateRationalFPS(OBSFrameRatePropertyWidget *fpsProps,
 
 	for (size_t i = 0; i < fpsProps->fps_ranges.size(); i++) {
 		auto &pair = fpsProps->fps_ranges[i];
-		combo->addItem(QString{"%1 - %2"}
-				       .arg(convert_fps(pair.first))
-				       .arg(convert_fps(pair.second)),
+		combo->addItem(QString{"%1 - %2"}.arg(convert_fps(pair.first)).arg(convert_fps(pair.second)),
 			       QVariant::fromValue(i));
 
 		media_frames_per_second match;
-		if (!current_fps || !matches_range(match, *current_fps, pair))
+		if (!current_fps || !matches_range(match, *current_fps, pair)) {
 			continue;
+		}
 
 		combo->setCurrentIndex(combo->count() - 1);
 		selected = true;
@@ -1210,18 +1198,16 @@ static QWidget *CreateRationalFPS(OBSFrameRatePropertyWidget *fpsProps,
 	}
 
 	layout->addRow(QObject::tr("Basic.Settings.Video.Numerator"), num_edit);
-	layout->addRow(QObject::tr("Basic.Settings.Video.Denominator"),
-		       den_edit);
+	layout->addRow(QObject::tr("Basic.Settings.Video.Denominator"), den_edit);
 
 	widget->setLayout(layout);
 
 	return widget;
 }
 
-static OBSFrameRatePropertyWidget *
-CreateFrameRateWidget(obs_property_t *prop, bool &warning, const char *option,
-		      media_frames_per_second *current_fps,
-		      frame_rate_ranges_t &fps_ranges)
+static OBSFrameRatePropertyWidget *CreateFrameRateWidget(obs_property_t *prop, bool &warning, const char *option,
+							 int fps_selector_mode, media_frames_per_second *current_fps,
+							 frame_rate_ranges_t &fps_ranges)
 {
 	auto widget = new OBSFrameRatePropertyWidget{};
 	auto hlayout = new QHBoxLayout{};
@@ -1230,16 +1216,16 @@ CreateFrameRateWidget(obs_property_t *prop, bool &warning, const char *option,
 	swap(widget->fps_ranges, fps_ranges);
 
 	auto combo = widget->modeSelect = new QComboBox();
-	combo->addItem(QObject::tr("Basic.PropertiesView.FPS.Simple"),
-		       QVariant::fromValue(frame_rate_tag::simple()));
+	combo->addItem(QObject::tr("Basic.PropertiesView.FPS.Simple"), QVariant::fromValue(frame_rate_tag::simple()));
 	combo->addItem(QObject::tr("Basic.PropertiesView.FPS.Rational"),
 		       QVariant::fromValue(frame_rate_tag::rational()));
 
 	combo->setToolTip(QT_UTF8(obs_property_long_description(prop)));
 
 	auto num = obs_property_frame_rate_options_count(prop);
-	if (num)
+	if (num) {
 		combo->insertSeparator(combo->count());
+	}
 
 	bool option_found = false;
 	for (size_t i = 0; i < num; i++) {
@@ -1247,11 +1233,11 @@ CreateFrameRateWidget(obs_property_t *prop, bool &warning, const char *option,
 		auto desc = obs_property_frame_rate_option_description(prop, i);
 		combo->addItem(desc, QVariant::fromValue(frame_rate_tag{name}));
 
-		if (!name || !option || string(name) != option)
+		if (!name || !option || string(name) != option) {
 			continue;
+		}
 
 		option_found = true;
-		combo->setCurrentIndex(combo->count() - 1);
 	}
 
 	hlayout->addWidget(combo, 0, Qt::AlignTop);
@@ -1263,41 +1249,42 @@ CreateFrameRateWidget(obs_property_t *prop, bool &warning, const char *option,
 		bool selected = false;
 		stack->addWidget(func(widget, selected, current_fps));
 
-		if (match_found || !selected)
+		if (match_found || !selected) {
 			return;
+		}
 
 		match_found = true;
-
-		stack->setCurrentIndex(stack->count() - 1);
-		combo->setCurrentIndex(stack->count() - 1);
 	};
 
 	AddWidget(CreateSimpleFPSValues);
 	AddWidget(CreateRationalFPS);
 	stack->addWidget(new QWidget{});
 
-	if (option_found)
+	// When possible, use the previously selected FPS selector mode (typically simple or rational). If a consumer has
+	// created extra selection modes and our stored value is out of bounds, fall back to the trailing values for the mode
+	// selector and the corresponding FPS selector.
+	if (fps_selector_mode < combo->count() && fps_selector_mode < stack->count()) {
+		combo->setCurrentIndex(fps_selector_mode);
+		stack->setCurrentIndex(fps_selector_mode);
+	} else {
+		combo->setCurrentIndex(combo->count() - 1);
 		stack->setCurrentIndex(stack->count() - 1);
-	else if (!match_found) {
-		int idx = current_fps ? 1 : 0; // Rational for "unsupported"
-					       // Simple as default
-		stack->setCurrentIndex(idx);
-		combo->setCurrentIndex(idx);
+	}
+
+	if (!match_found) {
 		warning = true;
 	}
 
 	hlayout->addWidget(stack, 0, Qt::AlignTop);
 
 	auto label_area = widget->labels = new QWidget{};
-	label_area->setSizePolicy(QSizePolicy::Expanding,
-				  QSizePolicy::Expanding);
+	label_area->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
 	auto vlayout = new QVBoxLayout{};
 	vlayout->setContentsMargins(0, 0, 0, 0);
 
 	auto fps_label = widget->currentFPS = new QLabel{"FPS: 22"};
-	auto time_label = widget->timePerFrame =
-		new QLabel{"Frame Interval: 0.123 ms"};
+	auto time_label = widget->timePerFrame = new QLabel{"Frame Interval: 0.123 ms"};
 	auto min_label = widget->minLabel = new QLabel{"Min FPS: 1/1"};
 	auto max_label = widget->maxLabel = new QLabel{"Max FPS: 2/1"};
 
@@ -1329,8 +1316,7 @@ static void UpdateMinMaxLabels(OBSFrameRatePropertyWidget *w)
 	};
 
 	auto variant = w->modeSelect->currentData();
-	if (!variant.canConvert<frame_rate_tag>() ||
-	    variant.value<frame_rate_tag>().type != frame_rate_tag::RATIONAL) {
+	if (!variant.canConvert<frame_rate_tag>() || variant.value<frame_rate_tag>().type != frame_rate_tag::RATIONAL) {
 		Hide(true);
 		return;
 	}
@@ -1352,27 +1338,25 @@ static void UpdateMinMaxLabels(OBSFrameRatePropertyWidget *w)
 	auto min = w->fps_ranges[idx].first;
 	auto max = w->fps_ranges[idx].second;
 
-	w->minLabel->setText(QString("Min FPS: %1/%2")
-				     .arg(min.numerator)
-				     .arg(min.denominator));
-	w->maxLabel->setText(QString("Max FPS: %1/%2")
-				     .arg(max.numerator)
-				     .arg(max.denominator));
+	w->minLabel->setText(QString("Min FPS: %1/%2").arg(min.numerator).arg(min.denominator));
+	w->maxLabel->setText(QString("Max FPS: %1/%2").arg(max.numerator).arg(max.denominator));
 }
 
 static void UpdateFPSLabels(OBSFrameRatePropertyWidget *w)
 {
 	UpdateMinMaxLabels(w);
 
-	unique_ptr<obs_data_item_t> obj{
-		obs_data_item_byname(w->settings, w->name)};
+	unique_ptr<obs_data_item_t> obj{obs_data_item_byname(w->settings, w->name)};
 
 	media_frames_per_second fps{};
 	media_frames_per_second *valid_fps = nullptr;
-	if (obs_data_item_get_autoselect_frames_per_second(obj.get(), &fps,
-							   nullptr) ||
-	    obs_data_item_get_frames_per_second(obj.get(), &fps, nullptr))
+	PRAGMA_WARN_PUSH
+	PRAGMA_DISABLE_DEPRECATION
+	if (obs_data_item_get_autoselect_frames_per_second(obj.get(), &fps, nullptr) ||
+	    obs_data_item_get_frames_per_second(obj.get(), &fps, nullptr)) {
 		valid_fps = &fps;
+	}
+	PRAGMA_WARN_POP
 
 	const char *option = nullptr;
 	obs_data_item_get_frames_per_second(obj.get(), nullptr, &option);
@@ -1380,8 +1364,9 @@ static void UpdateFPSLabels(OBSFrameRatePropertyWidget *w)
 	if (!valid_fps) {
 		w->currentFPS->setHidden(true);
 		w->timePerFrame->setHidden(true);
-		if (!option)
-			w->warningLabel->setObjectName("errorLabel");
+		if (!option) {
+			w->warningLabel->setProperty("class", "text-danger");
+		}
 
 		return;
 	}
@@ -1390,24 +1375,20 @@ static void UpdateFPSLabels(OBSFrameRatePropertyWidget *w)
 	w->timePerFrame->setHidden(false);
 
 	media_frames_per_second match{};
-	if (!option && !matches_ranges(match, *valid_fps, w->fps_ranges, true))
-		w->warningLabel->setObjectName("errorLabel");
-	else
-		w->warningLabel->setObjectName("");
+	if (!option && !matches_ranges(match, *valid_fps, w->fps_ranges, true)) {
+		w->warningLabel->setProperty("class", "text-danger");
+	} else {
+		w->warningLabel->setProperty("class", "");
+	}
 
 	auto convert_to_fps = media_frames_per_second_to_fps;
-	auto convert_to_frame_interval =
-		media_frames_per_second_to_frame_interval;
+	auto convert_to_frame_interval = media_frames_per_second_to_frame_interval;
 
-	w->currentFPS->setText(
-		QString("FPS: %1").arg(convert_to_fps(*valid_fps)));
-	w->timePerFrame->setText(
-		QString("Frame Interval: %1 ms")
-			.arg(convert_to_frame_interval(*valid_fps) * 1000));
+	w->currentFPS->setText(QString("FPS: %1").arg(convert_to_fps(*valid_fps)));
+	w->timePerFrame->setText(QString("Frame Interval: %1 ms").arg(convert_to_frame_interval(*valid_fps) * 1000));
 }
 
-void OBSPropertiesView::AddFrameRate(obs_property_t *prop, bool &warning,
-				     QFormLayout *layout, QLabel *&label)
+void OBSPropertiesView::AddFrameRate(obs_property_t *prop, bool &warning, QFormLayout *layout, QLabel *&label)
 {
 	const char *name = obs_property_name(prop);
 	bool enabled = obs_property_enabled(prop);
@@ -1418,19 +1399,21 @@ void OBSPropertiesView::AddFrameRate(obs_property_t *prop, bool &warning,
 
 	media_frames_per_second fps{};
 	media_frames_per_second *valid_fps = nullptr;
-	if (obs_data_item_get_frames_per_second(obj.get(), &fps, nullptr))
+	if (obs_data_item_get_frames_per_second(obj.get(), &fps, nullptr)) {
 		valid_fps = &fps;
+	}
 
 	frame_rate_ranges_t fps_ranges;
 	size_t num = obs_property_frame_rate_fps_ranges_count(prop);
 	fps_ranges.reserve(num);
-	for (size_t i = 0; i < num; i++)
-		fps_ranges.emplace_back(
-			obs_property_frame_rate_fps_range_min(prop, i),
-			obs_property_frame_rate_fps_range_max(prop, i));
+	for (size_t i = 0; i < num; i++) {
+		fps_ranges.emplace_back(obs_property_frame_rate_fps_range_min(prop, i),
+					obs_property_frame_rate_fps_range_max(prop, i));
+	}
 
-	auto widget = CreateFrameRateWidget(prop, warning, option, valid_fps,
-					    fps_ranges);
+	int selector_mode = obs_data_get_int(settings, "fps_selector_mode");
+
+	auto widget = CreateFrameRateWidget(prop, warning, option, selector_mode, valid_fps, fps_ranges);
 	auto info = new WidgetInfo(this, prop, widget);
 
 	widget->setToolTip(QT_UTF8(obs_property_long_description(prop)));
@@ -1444,8 +1427,7 @@ void OBSPropertiesView::AddFrameRate(obs_property_t *prop, bool &warning,
 	widget->numEdit->setEnabled(enabled);
 	widget->denEdit->setEnabled(enabled);
 
-	label = widget->warningLabel =
-		new QLabel{obs_property_description(prop)};
+	label = widget->warningLabel = new QLabel{obs_property_description(prop)};
 
 	layout->addRow(label, widget);
 
@@ -1459,46 +1441,47 @@ void OBSPropertiesView::AddFrameRate(obs_property_t *prop, bool &warning,
 	stack->setToolTip(QT_UTF8(obs_property_long_description(prop)));
 	combo->setToolTip(QT_UTF8(obs_property_long_description(prop)));
 
-	auto comboIndexChanged = static_cast<void (QComboBox::*)(int)>(
-		&QComboBox::currentIndexChanged);
-	connect(combo, comboIndexChanged, stack, [=](int index) {
+	connect(combo, &QComboBox::currentIndexChanged, stack, [=](int index) {
 		bool out_of_bounds = index >= stack->count();
 		auto idx = out_of_bounds ? stack->count() - 1 : index;
 		stack->setCurrentIndex(idx);
 
-		if (widget->updating)
+		if (widget->updating) {
 			return;
+		}
 
 		UpdateFPSLabels(widget);
 		emit info->ControlChanged();
 	});
 
-	connect(widget->simpleFPS, comboIndexChanged, [=](int) {
-		if (widget->updating)
+	connect(widget->simpleFPS, &QComboBox::currentIndexChanged, info, [=](int) {
+		if (widget->updating) {
 			return;
+		}
 
 		emit info->ControlChanged();
 	});
 
-	connect(widget->fpsRange, comboIndexChanged, [=](int) {
-		if (widget->updating)
+	connect(widget->fpsRange, &QComboBox::currentIndexChanged, info, [=](int) {
+		if (widget->updating) {
 			return;
+		}
 
 		UpdateFPSLabels(widget);
 	});
 
-	auto sbValueChanged =
-		static_cast<void (QSpinBox::*)(int)>(&QSpinBox::valueChanged);
-	connect(widget->numEdit, sbValueChanged, [=](int) {
-		if (widget->updating)
+	connect(widget->numEdit, &QSpinBox::valueChanged, info, [=](int) {
+		if (widget->updating) {
 			return;
+		}
 
 		emit info->ControlChanged();
 	});
 
-	connect(widget->denEdit, sbValueChanged, [=](int) {
-		if (widget->updating)
+	connect(widget->denEdit, &QSpinBox::valueChanged, info, [=](int) {
+		if (widget->updating) {
 			return;
+		}
 
 		emit info->ControlChanged();
 	});
@@ -1531,26 +1514,24 @@ void OBSPropertiesView::AddGroup(obs_property_t *prop, QFormLayout *layout)
 	}
 
 	// Insert into UI
-	layout->setWidget(layout->rowCount(),
-			  QFormLayout::ItemRole::SpanningRole, groupBox);
+	layout->setWidget(layout->rowCount(), QFormLayout::ItemRole::SpanningRole, groupBox);
 
 	// Register Group Widget
 	WidgetInfo *info = new WidgetInfo(this, prop, groupBox);
 	children.emplace_back(info);
 
 	// Signals
-	connect(groupBox, &QGroupBox::toggled, info,
-		&WidgetInfo::ControlChanged);
+	connect(groupBox, &QGroupBox::toggled, info, &WidgetInfo::ControlChanged);
 }
 
-void OBSPropertiesView::AddProperty(obs_property_t *property,
-				    QFormLayout *layout)
+void OBSPropertiesView::AddProperty(obs_property_t *property, QFormLayout *layout)
 {
 	const char *name = obs_property_name(property);
 	obs_property_type type = obs_property_get_type(property);
 
-	if (!obs_property_visible(property))
+	if (!obs_property_visible(property)) {
 		return;
+	}
 
 	QLabel *label = nullptr;
 	QWidget *widget = nullptr;
@@ -1599,83 +1580,65 @@ void OBSPropertiesView::AddProperty(obs_property_t *property,
 		AddColorAlpha(property, layout, label);
 	}
 
-	if (!widget && !label)
+	if (!widget && !label) {
 		return;
+	}
 
-	if (!label && type != OBS_PROPERTY_BOOL &&
-	    type != OBS_PROPERTY_BUTTON && type != OBS_PROPERTY_GROUP)
+	if (!label && type != OBS_PROPERTY_BOOL && type != OBS_PROPERTY_BUTTON && type != OBS_PROPERTY_GROUP) {
 		label = new QLabel(QT_UTF8(obs_property_description(property)));
+	}
 
 	if (label) {
-		if (warning)
+		if (warning) {
 			label->setObjectName("errorLabel");
+		}
 
 		if (minSize) {
 			label->setMinimumWidth(minSize);
 			label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 		}
 
-		if (!obs_property_enabled(property))
+		if (!obs_property_enabled(property)) {
 			label->setEnabled(false);
-	}
-
-	if (!widget)
-		return;
-
-	if (!obs_property_enabled(property))
-		widget->setEnabled(false);
-
-	if (obs_property_long_description(property)) {
-		QString file = !obs_frontend_is_theme_dark()
-				       ? ":/res/images/help.svg"
-				       : ":/res/images/help_light.svg";
-		if (label) {
-			QString lStr = "<html>%1 <img src='%2' style=' \
-				vertical-align: bottom;  \
-				' /></html>";
-
-			label->setText(lStr.arg(label->text(), file));
-			label->setToolTip(
-				obs_property_long_description(property));
-		} else if (type == OBS_PROPERTY_BOOL) {
-
-			QString bStr = "<html> <img src='%1' style=' \
-				vertical-align: bottom;  \
-				' /></html>";
-
-			const char *desc = obs_property_description(property);
-
-			QWidget *newWidget = new QWidget();
-
-			QHBoxLayout *boxLayout = new QHBoxLayout(newWidget);
-			boxLayout->setContentsMargins(0, 0, 0, 0);
-			boxLayout->setAlignment(Qt::AlignLeft);
-			boxLayout->setSpacing(0);
-
-			QCheckBox *check = qobject_cast<QCheckBox *>(widget);
-			check->setText(desc);
-			check->setToolTip(
-				obs_property_long_description(property));
-#ifdef __APPLE__
-			check->setAttribute(Qt::WA_LayoutUsesWidgetRect);
-#endif
-
-			QLabel *help = new QLabel(check);
-			help->setText(bStr.arg(file));
-			help->setToolTip(
-				obs_property_long_description(property));
-
-			boxLayout->addWidget(check);
-			boxLayout->addWidget(help);
-			widget = newWidget;
 		}
 	}
 
-	layout->addRow(label, widget);
+	if (!widget) {
+		return;
+	}
 
-	if (!lastFocused.empty())
-		if (lastFocused.compare(name) == 0)
+	if (!obs_property_enabled(property)) {
+		widget->setEnabled(false);
+	}
+
+	QWidget *leftWidget = label;
+	if (obs_property_long_description(property) && label) {
+		QString file = !obs_frontend_is_theme_dark() ? ":/res/images/help.svg" : ":/res/images/help_light.svg";
+
+		QWidget *newWidget = new QWidget();
+		newWidget->setToolTip(obs_property_long_description(property));
+
+		QHBoxLayout *boxLayout = new QHBoxLayout(newWidget);
+		boxLayout->setContentsMargins(0, 0, 0, 0);
+		boxLayout->setAlignment(Qt::AlignLeft);
+		boxLayout->setSpacing(0);
+
+		IconLabel *help = new IconLabel(newWidget);
+		help->setIcon(QIcon(file));
+		help->setToolTip(obs_property_long_description(property));
+
+		boxLayout->addWidget(label);
+		boxLayout->addWidget(help);
+		leftWidget = newWidget;
+	}
+
+	layout->addRow(leftWidget, widget);
+
+	if (!lastFocused.empty()) {
+		if (lastFocused.compare(name) == 0) {
 			lastWidget = widget;
+		}
+	}
 }
 
 void OBSPropertiesView::SignalChanged()
@@ -1683,78 +1646,80 @@ void OBSPropertiesView::SignalChanged()
 	emit Changed();
 }
 
-static bool FrameRateChangedVariant(const QVariant &variant,
-				    media_frames_per_second &fps,
-				    obs_data_item_t *&obj,
+static bool FrameRateChangedVariant(const QVariant &variant, media_frames_per_second &fps, obs_data_item_t *&obj,
 				    const media_frames_per_second *valid_fps)
 {
-	if (!variant.canConvert<media_frames_per_second>())
+	if (!variant.canConvert<media_frames_per_second>()) {
 		return false;
+	}
 
 	fps = variant.value<media_frames_per_second>();
-	if (valid_fps && fps == *valid_fps)
+	if (valid_fps && fps == *valid_fps) {
 		return false;
+	}
 
 	obs_data_item_set_frames_per_second(&obj, fps, nullptr);
 	return true;
 }
 
-static bool FrameRateChangedCommon(OBSFrameRatePropertyWidget *w,
-				   obs_data_item_t *&obj,
+static bool FrameRateChangedCommon(OBSFrameRatePropertyWidget *w, obs_data_item_t *&obj,
 				   const media_frames_per_second *valid_fps)
 {
 	media_frames_per_second fps{};
-	if (!FrameRateChangedVariant(w->simpleFPS->currentData(), fps, obj,
-				     valid_fps))
+	if (!FrameRateChangedVariant(w->simpleFPS->currentData(), fps, obj, valid_fps)) {
 		return false;
+	}
 
 	UpdateRationalFPSWidgets(w, &fps);
 	return true;
 }
 
-static bool FrameRateChangedRational(OBSFrameRatePropertyWidget *w,
-				     obs_data_item_t *&obj,
+static bool FrameRateChangedRational(OBSFrameRatePropertyWidget *w, obs_data_item_t *&obj,
 				     const media_frames_per_second *valid_fps)
 {
 	auto num = w->numEdit->value();
 	auto den = w->denEdit->value();
 
 	auto fps = make_fps(num, den);
-	if (valid_fps && media_frames_per_second_is_valid(fps) &&
-	    fps == *valid_fps)
+	if (valid_fps && media_frames_per_second_is_valid(fps) && fps == *valid_fps) {
 		return false;
+	}
 
 	obs_data_item_set_frames_per_second(&obj, fps, nullptr);
 	UpdateSimpleFPSSelection(w, &fps);
 	return true;
 }
 
-static bool FrameRateChanged(QWidget *widget, const char *name,
-			     OBSData &settings)
+static bool FrameRateChanged(QWidget *widget, const char *name, OBSData &settings)
 {
 	auto w = qobject_cast<OBSFrameRatePropertyWidget *>(widget);
-	if (!w)
+	if (!w) {
 		return false;
+	}
 
 	auto variant = w->modeSelect->currentData();
-	if (!variant.canConvert<frame_rate_tag>())
+	if (!variant.canConvert<frame_rate_tag>()) {
 		return false;
+	}
 
 	auto StopUpdating = [&](void *) {
 		w->updating = false;
 	};
-	unique_ptr<void, decltype(StopUpdating)> signalGuard(
-		static_cast<void *>(w), StopUpdating);
+	unique_ptr<void, decltype(StopUpdating)> signalGuard(static_cast<void *>(w), StopUpdating);
 	w->updating = true;
 
-	if (!obs_data_has_user_value(settings, name))
+	obs_data_set_int(w->settings, "fps_selector_mode", w->modeSelect->currentIndex());
+
+	if (!obs_data_has_user_value(settings, name)) {
 		obs_data_set_obj(settings, name, nullptr);
+	}
 
 	unique_ptr<obs_data_item_t> obj{obs_data_item_byname(settings, name)};
 	auto obj_ptr = obj.get();
 	auto CheckObj = [&]() {
-		if (!obj_ptr)
+		if (!obj_ptr) {
 			obj.release();
+		}
 	};
 
 	const char *option = nullptr;
@@ -1762,24 +1727,28 @@ static bool FrameRateChanged(QWidget *widget, const char *name,
 
 	media_frames_per_second fps{};
 	media_frames_per_second *valid_fps = nullptr;
-	if (obs_data_item_get_frames_per_second(obj.get(), &fps, nullptr))
+	if (obs_data_item_get_frames_per_second(obj.get(), &fps, nullptr)) {
 		valid_fps = &fps;
+	}
 
 	auto tag = variant.value<frame_rate_tag>();
 	switch (tag.type) {
 	case frame_rate_tag::SIMPLE:
-		if (!FrameRateChangedCommon(w, obj_ptr, valid_fps))
+		if (!FrameRateChangedCommon(w, obj_ptr, valid_fps)) {
 			return false;
+		}
 		break;
 
 	case frame_rate_tag::RATIONAL:
-		if (!FrameRateChangedRational(w, obj_ptr, valid_fps))
+		if (!FrameRateChangedRational(w, obj_ptr, valid_fps)) {
 			return false;
+		}
 		break;
 
 	case frame_rate_tag::USER:
-		if (tag.val && option && strcmp(tag.val, option) == 0)
+		if (tag.val && option && strcmp(tag.val, option) == 0) {
 			return false;
+		}
 
 		obs_data_item_set_frames_per_second(&obj_ptr, {}, tag.val);
 		break;
@@ -1793,8 +1762,7 @@ static bool FrameRateChanged(QWidget *widget, const char *name,
 void WidgetInfo::BoolChanged(const char *setting)
 {
 	QCheckBox *checkbox = static_cast<QCheckBox *>(widget);
-	obs_data_set_bool(view->settings, setting,
-			  checkbox->checkState() == Qt::Checked);
+	obs_data_set_bool(view->settings, setting, checkbox->checkState() == Qt::Checked);
 }
 
 void WidgetInfo::IntChanged(const char *setting)
@@ -1814,10 +1782,8 @@ void WidgetInfo::TextChanged(const char *setting)
 	obs_text_type type = obs_property_text_type(property);
 
 	if (type == OBS_TEXT_MULTILINE) {
-		OBSPlainTextEdit *edit =
-			static_cast<OBSPlainTextEdit *>(widget);
-		obs_data_set_string(view->settings, setting,
-				    QT_TO_UTF8(edit->toPlainText()));
+		OBSPlainTextEdit *edit = static_cast<OBSPlainTextEdit *>(widget);
+		obs_data_set_string(view->settings, setting, QT_TO_UTF8(edit->toPlainText()));
 		return;
 	}
 
@@ -1835,25 +1801,28 @@ bool WidgetInfo::PathChanged(const char *setting)
 	QLineEdit *edit = static_cast<QLineEdit *>(widget);
 
 	QString startDir = edit->text();
-	if (startDir.isEmpty())
+	if (startDir.isEmpty()) {
 		startDir = default_path;
+	}
 
 	QString path;
 
-	if (type == OBS_PATH_DIRECTORY)
+	if (type == OBS_PATH_DIRECTORY) {
 		path = SelectDirectory(view, QT_UTF8(desc), startDir);
-	else if (type == OBS_PATH_FILE)
+	} else if (type == OBS_PATH_FILE) {
 		path = OpenFile(view, QT_UTF8(desc), startDir, QT_UTF8(filter));
-	else if (type == OBS_PATH_FILE_SAVE)
+	} else if (type == OBS_PATH_FILE_SAVE) {
 		path = SaveFile(view, QT_UTF8(desc), startDir, QT_UTF8(filter));
+	}
 
 #ifdef __APPLE__
 	// TODO: Revisit when QTBUG-42661 is fixed
 	widget->window()->raise();
 #endif
 
-	if (path.isEmpty())
+	if (path.isEmpty()) {
 		return false;
+	}
 
 	edit->setText(path);
 	obs_data_set_string(view->settings, setting, QT_TO_UTF8(path));
@@ -1867,8 +1836,7 @@ void WidgetInfo::ListChanged(const char *setting)
 	QVariant data;
 
 	if (type == OBS_COMBO_TYPE_RADIO) {
-		QButtonGroup *group =
-			static_cast<QAbstractButton *>(widget)->group();
+		QButtonGroup *group = static_cast<QAbstractButton *>(widget)->group();
 		QAbstractButton *button = group->checkedButton();
 		data = button->property("value");
 	} else if (type == OBS_COMBO_TYPE_EDITABLE) {
@@ -1876,30 +1844,27 @@ void WidgetInfo::ListChanged(const char *setting)
 	} else {
 		QComboBox *combo = static_cast<QComboBox *>(widget);
 		int index = combo->currentIndex();
-		if (index != -1)
+		if (index != -1) {
 			data = combo->itemData(index);
-		else
+		} else {
 			return;
+		}
 	}
 
 	switch (format) {
 	case OBS_COMBO_FORMAT_INVALID:
 		return;
 	case OBS_COMBO_FORMAT_INT:
-		obs_data_set_int(view->settings, setting,
-				 data.value<long long>());
+		obs_data_set_int(view->settings, setting, data.value<long long>());
 		break;
 	case OBS_COMBO_FORMAT_FLOAT:
-		obs_data_set_double(view->settings, setting,
-				    data.value<double>());
+		obs_data_set_double(view->settings, setting, data.value<double>());
 		break;
 	case OBS_COMBO_FORMAT_STRING:
-		obs_data_set_string(view->settings, setting,
-				    data.toByteArray().constData());
+		obs_data_set_string(view->settings, setting, data.toByteArray().constData());
 		break;
 	case OBS_COMBO_FORMAT_BOOL:
-		obs_data_set_bool(view->settings, setting,
-				  data.value<double>());
+		obs_data_set_bool(view->settings, setting, data.value<double>());
 		break;
 	}
 }
@@ -1929,8 +1894,9 @@ bool WidgetInfo::ColorChangedInternal(const char *setting, bool supportAlpha)
 	widget->window()->raise();
 #endif
 
-	if (!color.isValid())
+	if (!color.isValid()) {
 		return false;
+	}
 
 	if (supportAlpha) {
 		format = QColor::HexArgb;
@@ -1943,10 +1909,9 @@ bool WidgetInfo::ColorChangedInternal(const char *setting, bool supportAlpha)
 	label->setText(color.name(format));
 	QPalette palette = QPalette(color);
 	label->setPalette(palette);
-	label->setStyleSheet(
-		QString("background-color :%1; color: %2;")
-			.arg(palette.color(QPalette::Window).name(format))
-			.arg(palette.color(QPalette::WindowText).name(format)));
+	label->setStyleSheet(QString("background-color :%1; color: %2;")
+				     .arg(palette.color(QPalette::Window).name(format))
+				     .arg(palette.color(QPalette::WindowText).name(format)));
 
 	obs_data_set_int(view->settings, setting, color_to_int(color));
 
@@ -1978,20 +1943,17 @@ bool WidgetInfo::FontChanged(const char *setting)
 
 	if (!font_obj) {
 		QFont initial;
-		font = QFontDialog::getFont(
-			&success, initial, view,
-			tr("Basic.PropertiesWindow.SelectFont.WindowTitle"),
-			options);
+		font = QFontDialog::getFont(&success, initial, view,
+					    tr("Basic.PropertiesWindow.SelectFont.WindowTitle"), options);
 	} else {
 		MakeQFont(font_obj, font);
-		font = QFontDialog::getFont(
-			&success, font, view,
-			tr("Basic.PropertiesWindow.SelectFont.WindowTitle"),
-			options);
+		font = QFontDialog::getFont(&success, font, view, tr("Basic.PropertiesWindow.SelectFont.WindowTitle"),
+					    options);
 	}
 
-	if (!success)
+	if (!success) {
 		return false;
+	}
 
 	font_obj = obs_data_create();
 
@@ -2017,9 +1979,7 @@ bool WidgetInfo::FontChanged(const char *setting)
 void WidgetInfo::GroupChanged(const char *setting)
 {
 	QGroupBox *groupbox = static_cast<QGroupBox *>(widget);
-	obs_data_set_bool(view->settings, setting,
-			  groupbox->isCheckable() ? groupbox->isChecked()
-						  : true);
+	obs_data_set_bool(view->settings, setting, groupbox->isCheckable() ? groupbox->isChecked() : true);
 }
 
 void WidgetInfo::EditableListChanged()
@@ -2031,11 +1991,8 @@ void WidgetInfo::EditableListChanged()
 	for (int i = 0; i < list->count(); i++) {
 		QListWidgetItem *item = list->item(i);
 		OBSDataAutoRelease arrayItem = obs_data_create();
-		obs_data_set_string(arrayItem, "value",
-				    QT_TO_UTF8(item->text()));
-		obs_data_set_string(
-			arrayItem, "uuid",
-			QT_TO_UTF8(item->data(Qt::UserRole).toString()));
+		obs_data_set_string(arrayItem, "value", QT_TO_UTF8(item->text()));
+		obs_data_set_string(arrayItem, "uuid", QT_TO_UTF8(item->data(Qt::UserRole).toString()));
 		obs_data_set_bool(arrayItem, "selected", item->isSelected());
 		obs_data_set_bool(arrayItem, "hidden", item->isHidden());
 		obs_data_array_push_back(array, arrayItem);
@@ -2053,21 +2010,18 @@ void WidgetInfo::ButtonClicked()
 
 	if (type == OBS_BUTTON_URL && strcmp(savedUrl, "") != 0) {
 		QUrl url(savedUrl, QUrl::StrictMode);
-		if (url.isValid() && (url.scheme().compare("http") == 0 ||
-				      url.scheme().compare("https") == 0)) {
+		if (url.isValid() && (url.scheme().compare("http") == 0 || url.scheme().compare("https") == 0)) {
 			QString msg(tr("Basic.PropertiesView.UrlButton.Text"));
 			msg += "\n\n";
-			msg += QString(tr("Basic.PropertiesView.UrlButton.Text.Url"))
-				       .arg(savedUrl);
+			msg += QString(tr("Basic.PropertiesView.UrlButton.Text.Url")).arg(savedUrl);
 
-			QMessageBox::StandardButton button = OBSMessageBox::question(
-				view->window(),
-				tr("Basic.PropertiesView.UrlButton.OpenUrl"),
-				msg, QMessageBox::Yes | QMessageBox::No,
-				QMessageBox::No);
+			QMessageBox::StandardButton button =
+				OBSMessageBox::question(view->window(), tr("Basic.PropertiesView.UrlButton.OpenUrl"),
+							msg, QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
 
-			if (button == QMessageBox::Yes)
+			if (button == QMessageBox::Yes) {
 				QDesktopServices::openUrl(url);
+			}
 		}
 		return;
 	}
@@ -2075,15 +2029,13 @@ void WidgetInfo::ButtonClicked()
 	OBSObject strongObj = view->GetObject();
 	void *obj = strongObj ? strongObj.Get() : view->rawObj;
 	if (obs_property_button_clicked(property, obj)) {
-		QMetaObject::invokeMethod(view, "RefreshProperties",
-					  Qt::QueuedConnection);
+		QMetaObject::invokeMethod(view, &OBSPropertiesView::RefreshProperties, Qt::QueuedConnection);
 	}
 }
 
 void WidgetInfo::TogglePasswordText(bool show)
 {
-	reinterpret_cast<QLineEdit *>(widget)->setEchoMode(
-		show ? QLineEdit::Normal : QLineEdit::Password);
+	reinterpret_cast<QLineEdit *>(widget)->setEchoMode(show ? QLineEdit::Normal : QLineEdit::Password);
 }
 
 void WidgetInfo::ControlChanged()
@@ -2119,49 +2071,50 @@ void WidgetInfo::ControlChanged()
 		ButtonClicked();
 		return;
 	case OBS_PROPERTY_COLOR:
-		if (!ColorChanged(setting))
+		if (!ColorChanged(setting)) {
 			return;
+		}
 		break;
 	case OBS_PROPERTY_FONT:
-		if (!FontChanged(setting))
+		if (!FontChanged(setting)) {
 			return;
+		}
 		break;
 	case OBS_PROPERTY_PATH:
-		if (!PathChanged(setting))
+		if (!PathChanged(setting)) {
 			return;
+		}
 		break;
 	case OBS_PROPERTY_EDITABLE_LIST:
 		break;
 	case OBS_PROPERTY_FRAME_RATE:
-		if (!FrameRateChanged(widget, setting, view->settings))
+		if (!FrameRateChanged(widget, setting, view->settings)) {
 			return;
+		}
 		break;
 	case OBS_PROPERTY_GROUP:
 		GroupChanged(setting);
 		break;
 	case OBS_PROPERTY_COLOR_ALPHA:
-		if (!ColorAlphaChanged(setting))
+		if (!ColorAlphaChanged(setting)) {
 			return;
+		}
 		break;
 	}
 
 	if (!recently_updated) {
 		recently_updated = true;
 		update_timer = new QTimer;
-		connect(update_timer, &QTimer::timeout,
-			[this, &ru = recently_updated]() {
-				OBSObject strongObj = view->GetObject();
-				void *obj = strongObj ? strongObj.Get()
-						      : view->rawObj;
-				if (obj && view->callback &&
-				    !view->deferUpdate) {
-					view->callback(obj, old_settings_cache,
-						       view->settings);
-				}
+		connect(update_timer, &QTimer::timeout, this, [this, &ru = recently_updated]() {
+			OBSObject strongObj = view->GetObject();
+			void *obj = strongObj ? strongObj.Get() : view->rawObj;
+			if (obj && view->callback && !view->deferUpdate) {
+				view->callback(obj, old_settings_cache, view->settings);
+			}
 
-				ru = false;
-			});
-		connect(update_timer, &QTimer::timeout, &QTimer::deleteLater);
+			ru = false;
+		});
+		connect(update_timer, &QTimer::timeout, update_timer, &QTimer::deleteLater);
 		update_timer->setSingleShot(true);
 	}
 
@@ -2175,16 +2128,16 @@ void WidgetInfo::ControlChanged()
 	if (view->visUpdateCb && !view->deferUpdate) {
 		OBSObject strongObj = view->GetObject();
 		void *obj = strongObj ? strongObj.Get() : view->rawObj;
-		if (obj)
+		if (obj) {
 			view->visUpdateCb(obj, view->settings);
+		}
 	}
 
 	view->SignalChanged();
 
 	if (obs_property_modified(property, view->settings)) {
 		view->lastFocused = setting;
-		QMetaObject::invokeMethod(view, "RefreshProperties",
-					  Qt::QueuedConnection);
+		QMetaObject::invokeMethod(view, &OBSPropertiesView::RefreshProperties, Qt::QueuedConnection);
 	}
 }
 
@@ -2197,19 +2150,20 @@ class EditableItemDialog : public QDialog {
 	{
 		QString curPath = QFileInfo(edit->text()).absoluteDir().path();
 
-		if (curPath.isEmpty())
+		if (curPath.isEmpty()) {
 			curPath = default_path;
+		}
 
 		QString path = OpenFile(this, tr("Browse"), curPath, filter);
-		if (path.isEmpty())
+		if (path.isEmpty()) {
 			return;
+		}
 
 		edit->setText(path);
 	}
 
 public:
-	EditableItemDialog(QWidget *parent, const QString &text, bool browse,
-			   const char *filter_ = nullptr,
+	EditableItemDialog(QWidget *parent, const QString &text, bool browse, const char *filter_ = nullptr,
 			   const char *default_path_ = nullptr)
 		: QDialog(parent),
 		  filter(QT_UTF8(filter_)),
@@ -2224,18 +2178,14 @@ public:
 		topLayout->setAlignment(edit, Qt::AlignVCenter);
 
 		if (browse) {
-			QPushButton *browseButton =
-				new QPushButton(tr("Browse"));
-			browseButton->setProperty("themeID", "settingsButtons");
+			QPushButton *browseButton = new QPushButton(tr("Browse"));
 			topLayout->addWidget(browseButton);
 			topLayout->setAlignment(browseButton, Qt::AlignVCenter);
 
-			connect(browseButton, &QPushButton::clicked, this,
-				&EditableItemDialog::BrowseClicked);
+			connect(browseButton, &QPushButton::clicked, this, &EditableItemDialog::BrowseClicked);
 		}
 
-		QDialogButtonBox::StandardButtons buttons =
-			QDialogButtonBox::Ok | QDialogButtonBox::Cancel;
+		QDialogButtonBox::StandardButtons buttons = QDialogButtonBox::Ok | QDialogButtonBox::Cancel;
 
 		QDialogButtonBox *buttonBox = new QDialogButtonBox(buttons);
 		buttonBox->setCenterButtons(true);
@@ -2246,10 +2196,8 @@ public:
 		setLayout(mainLayout);
 		resize(QSize(400, 80));
 
-		connect(buttonBox, &QDialogButtonBox::accepted, this,
-			&EditableItemDialog::accept);
-		connect(buttonBox, &QDialogButtonBox::rejected, this,
-			&EditableItemDialog::reject);
+		connect(buttonBox, &QDialogButtonBox::accepted, this, &EditableItemDialog::accept);
+		connect(buttonBox, &QDialogButtonBox::rejected, this, &EditableItemDialog::reject);
 	}
 
 	inline QString GetText() const { return edit->text(); }
@@ -2257,8 +2205,7 @@ public:
 
 void WidgetInfo::EditListAdd()
 {
-	enum obs_editable_list_type type =
-		obs_property_editable_list_type(property);
+	enum obs_editable_list_type type = obs_property_editable_list_type(property);
 
 	if (type == OBS_EDITABLE_LIST_TYPE_STRINGS) {
 		EditListAddText();
@@ -2271,8 +2218,7 @@ void WidgetInfo::EditListAdd()
 	QAction *action;
 
 	action = new QAction(tr("Basic.PropertiesWindow.AddFiles"), this);
-	connect(action, &QAction::triggered, this,
-		&WidgetInfo::EditListAddFiles);
+	connect(action, &QAction::triggered, this, &WidgetInfo::EditListAddFiles);
 	popup.addAction(action);
 
 	action = new QAction(tr("Basic.PropertiesWindow.AddDir"), this);
@@ -2281,8 +2227,7 @@ void WidgetInfo::EditListAdd()
 
 	if (type == OBS_EDITABLE_LIST_TYPE_FILES_AND_URLS) {
 		action = new QAction(tr("Basic.PropertiesWindow.AddURL"), this);
-		connect(action, &QAction::triggered, this,
-			&WidgetInfo::EditListAddText);
+		connect(action, &QAction::triggered, this, &WidgetInfo::EditListAddText);
 		popup.addAction(action);
 	}
 
@@ -2295,19 +2240,19 @@ void WidgetInfo::EditListAddText()
 	const char *desc = obs_property_description(property);
 
 	EditableItemDialog dialog(widget->window(), QString(), false);
-	auto title = tr("Basic.PropertiesWindow.AddEditableListEntry")
-			     .arg(QT_UTF8(desc));
+	auto title = tr("Basic.PropertiesWindow.AddEditableListEntry").arg(QT_UTF8(desc));
 	dialog.setWindowTitle(title);
-	if (dialog.exec() == QDialog::Rejected)
+	if (dialog.exec() == QDialog::Rejected) {
 		return;
+	}
 
 	QString text = dialog.GetText();
-	if (text.isEmpty())
+	if (text.isEmpty()) {
 		return;
+	}
 
 	QListWidgetItem *item = new QListWidgetItem(text);
-	item->setData(Qt::UserRole,
-		      QUuid::createUuid().toString(QUuid::WithoutBraces));
+	item->setData(Qt::UserRole, QUuid::createUuid().toString(QUuid::WithoutBraces));
 	list->addItem(item);
 
 	EditableListChanged();
@@ -2318,26 +2263,23 @@ void WidgetInfo::EditListAddFiles()
 	QListWidget *list = reinterpret_cast<QListWidget *>(widget);
 	const char *desc = obs_property_description(property);
 	const char *filter = obs_property_editable_list_filter(property);
-	const char *default_path =
-		obs_property_editable_list_default_path(property);
+	const char *default_path = obs_property_editable_list_default_path(property);
 
-	QString title = tr("Basic.PropertiesWindow.AddEditableListFiles")
-				.arg(QT_UTF8(desc));
+	QString title = tr("Basic.PropertiesWindow.AddEditableListFiles").arg(QT_UTF8(desc));
 
-	QStringList files =
-		OpenFiles(list, title, QT_UTF8(default_path), QT_UTF8(filter));
+	QStringList files = OpenFiles(list, title, QT_UTF8(default_path), QT_UTF8(filter));
 #ifdef __APPLE__
 	// TODO: Revisit when QTBUG-42661 is fixed
 	widget->window()->raise();
 #endif
 
-	if (files.count() == 0)
+	if (files.count() == 0) {
 		return;
+	}
 
 	for (QString file : files) {
 		QListWidgetItem *item = new QListWidgetItem(file);
-		item->setData(Qt::UserRole, QUuid::createUuid().toString(
-						    QUuid::WithoutBraces));
+		item->setData(Qt::UserRole, QUuid::createUuid().toString(QUuid::WithoutBraces));
 		list->addItem(item);
 	}
 
@@ -2348,11 +2290,9 @@ void WidgetInfo::EditListAddDir()
 {
 	QListWidget *list = reinterpret_cast<QListWidget *>(widget);
 	const char *desc = obs_property_description(property);
-	const char *default_path =
-		obs_property_editable_list_default_path(property);
+	const char *default_path = obs_property_editable_list_default_path(property);
 
-	QString title = tr("Basic.PropertiesWindow.AddEditableListDir")
-				.arg(QT_UTF8(desc));
+	QString title = tr("Basic.PropertiesWindow.AddEditableListDir").arg(QT_UTF8(desc));
 
 	QString dir = SelectDirectory(list, title, QT_UTF8(default_path));
 #ifdef __APPLE__
@@ -2360,12 +2300,12 @@ void WidgetInfo::EditListAddDir()
 	widget->window()->raise();
 #endif
 
-	if (dir.isEmpty())
+	if (dir.isEmpty()) {
 		return;
+	}
 
 	QListWidgetItem *item = new QListWidgetItem(dir);
-	item->setData(Qt::UserRole,
-		      QUuid::createUuid().toString(QUuid::WithoutBraces));
+	item->setData(Qt::UserRole, QUuid::createUuid().toString(QUuid::WithoutBraces));
 	list->addItem(item);
 
 	EditableListChanged();
@@ -2376,22 +2316,23 @@ void WidgetInfo::EditListRemove()
 	QListWidget *list = reinterpret_cast<QListWidget *>(widget);
 	QList<QListWidgetItem *> items = list->selectedItems();
 
-	for (QListWidgetItem *item : items)
+	for (QListWidgetItem *item : items) {
 		delete item;
+	}
 	EditableListChanged();
 }
 
 void WidgetInfo::EditListEdit()
 {
 	QListWidget *list = reinterpret_cast<QListWidget *>(widget);
-	enum obs_editable_list_type type =
-		obs_property_editable_list_type(property);
+	enum obs_editable_list_type type = obs_property_editable_list_type(property);
 	const char *desc = obs_property_description(property);
 	const char *filter = obs_property_editable_list_filter(property);
 	QList<QListWidgetItem *> selectedItems = list->selectedItems();
 
-	if (!selectedItems.count())
+	if (!selectedItems.count()) {
 		return;
+	}
 
 	QListWidgetItem *item = selectedItems[0];
 
@@ -2399,33 +2340,32 @@ void WidgetInfo::EditListEdit()
 		QDir pathDir(item->text());
 		QString path;
 
-		if (pathDir.exists())
-			path = SelectDirectory(list, tr("Browse"),
-					       item->text());
-		else
-			path = OpenFile(list, tr("Browse"), item->text(),
-					QT_UTF8(filter));
+		if (pathDir.exists()) {
+			path = SelectDirectory(list, tr("Browse"), item->text());
+		} else {
+			path = OpenFile(list, tr("Browse"), item->text(), QT_UTF8(filter));
+		}
 
-		if (path.isEmpty())
+		if (path.isEmpty()) {
 			return;
+		}
 
 		item->setText(path);
 		EditableListChanged();
 		return;
 	}
 
-	EditableItemDialog dialog(widget->window(), item->text(),
-				  type != OBS_EDITABLE_LIST_TYPE_STRINGS,
-				  filter);
-	auto title = tr("Basic.PropertiesWindow.EditEditableListEntry")
-			     .arg(QT_UTF8(desc));
+	EditableItemDialog dialog(widget->window(), item->text(), type != OBS_EDITABLE_LIST_TYPE_STRINGS, filter);
+	auto title = tr("Basic.PropertiesWindow.EditEditableListEntry").arg(QT_UTF8(desc));
 	dialog.setWindowTitle(title);
-	if (dialog.exec() == QDialog::Rejected)
+	if (dialog.exec() == QDialog::Rejected) {
 		return;
+	}
 
 	QString text = dialog.GetText();
-	if (text.isEmpty())
+	if (text.isEmpty()) {
 		return;
+	}
 
 	item->setText(text);
 	EditableListChanged();
@@ -2438,8 +2378,9 @@ void WidgetInfo::EditListUp()
 
 	for (int i = 0; i < list->count(); i++) {
 		QListWidgetItem *item = list->item(i);
-		if (!item->isSelected())
+		if (!item->isSelected()) {
 			continue;
+		}
 
 		int row = list->row(item);
 
@@ -2463,8 +2404,9 @@ void WidgetInfo::EditListDown()
 
 	for (int i = list->count() - 1; i >= 0; i--) {
 		QListWidgetItem *item = list->item(i);
-		if (!item->isSelected())
+		if (!item->isSelected()) {
 			continue;
+		}
 
 		int row = list->row(item);
 

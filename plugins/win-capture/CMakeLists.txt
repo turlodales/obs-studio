@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.24...3.25)
+cmake_minimum_required(VERSION 3.28...3.30)
 
 if(NOT TARGET OBS::obfuscate)
   add_subdirectory("${CMAKE_SOURCE_DIR}/libobs" "${CMAKE_BINARY_DIR}/libobs")
@@ -75,6 +75,9 @@ target_link_libraries(
 
 # Remove once jansson has been fixed on obs-deps
 target_link_options(win-capture PRIVATE /IGNORE:4098)
+
+configure_file(cmake/windows/obs-module.rc.in win-capture.rc)
+target_sources(win-capture PRIVATE win-capture.rc)
 
 set_target_properties_obs(win-capture PROPERTIES FOLDER plugins/win-capture PREFIX "")
 

@@ -15,9 +15,8 @@
 #include <glad/glad.h>
 #endif
 
-#define do_log(level, format, ...)               \
-	blog(level, "[obs-nvenc: '%s'] " format, \
-	     obs_encoder_get_name(enc->encoder), ##__VA_ARGS__)
+#define do_log(level, format, ...) \
+	blog(level, "[obs-nvenc: '%s'] " format, obs_encoder_get_name(enc->encoder), ##__VA_ARGS__)
 
 #define error(format, ...) do_log(LOG_ERROR, format, ##__VA_ARGS__)
 #define warn(format, ...) do_log(LOG_WARNING, format, ##__VA_ARGS__)
@@ -87,6 +86,7 @@ struct nvenc_data {
 	DARRAY(uint8_t) packet_data;
 	int64_t packet_pts;
 	bool packet_keyframe;
+	int packet_priority;
 
 #ifdef _WIN32
 	DARRAY(struct nv_texture) textures;
@@ -107,6 +107,11 @@ struct nvenc_data {
 	int8_t *roi_map;
 	size_t roi_map_size;
 	uint32_t roi_increment;
+
+#ifdef NVENC_13_0_OR_LATER
+	CONTENT_LIGHT_LEVEL *cll;
+	MASTERING_DISPLAY_INFO *mdi;
+#endif
 
 	struct nvenc_properties props;
 
@@ -155,9 +160,8 @@ struct nv_texture {
 /* ------------------------------------------------------------------------- */
 /* Shared functions                                                          */
 
-bool nvenc_encode_base(struct nvenc_data *enc, struct nv_bitstream *bs,
-		       void *pic, int64_t pts, struct encoder_packet *packet,
-		       bool *received_packet);
+bool nvenc_encode_base(struct nvenc_data *enc, struct nv_bitstream *bs, void *pic, int64_t pts,
+		       struct encoder_packet *packet, bool *received_packet);
 
 /* ------------------------------------------------------------------------- */
 /* Backend-specific functions                                                */
@@ -170,8 +174,7 @@ void d3d11_free(struct nvenc_data *enc);
 bool d3d11_init_textures(struct nvenc_data *enc);
 void d3d11_free_textures(struct nvenc_data *enc);
 
-bool d3d11_encode(void *data, struct encoder_texture *texture, int64_t pts,
-		  uint64_t lock_key, uint64_t *next_key,
+bool d3d11_encode(void *data, struct encoder_texture *texture, int64_t pts, uint64_t lock_key, uint64_t *next_key,
 		  struct encoder_packet *packet, bool *received_packet);
 #endif
 
@@ -182,14 +185,12 @@ void cuda_ctx_free(struct nvenc_data *enc);
 bool cuda_init_surfaces(struct nvenc_data *enc);
 void cuda_free_surfaces(struct nvenc_data *enc);
 
-bool cuda_encode(void *data, struct encoder_frame *frame,
-		 struct encoder_packet *packet, bool *received_packet);
+bool cuda_encode(void *data, struct encoder_frame *frame, struct encoder_packet *packet, bool *received_packet);
 
 #ifndef _WIN32
 /** CUDA OpenGL **/
 void cuda_opengl_free(struct nvenc_data *enc);
-bool cuda_opengl_encode(void *data, struct encoder_texture *tex, int64_t pts,
-			uint64_t lock_key, uint64_t *next_key,
+bool cuda_opengl_encode(void *data, struct encoder_texture *tex, int64_t pts, uint64_t lock_key, uint64_t *next_key,
 			struct encoder_packet *packet, bool *received_packet);
 #endif
 
@@ -207,5 +208,5 @@ obs_properties_t *hevc_nvenc_properties(void *);
 obs_properties_t *av1_nvenc_properties(void *);
 
 /* Custom argument parsing */
-void apply_user_args(struct nvenc_data *enc);
+bool apply_user_args(struct nvenc_data *enc);
 bool get_user_arg_int(struct nvenc_data *enc, const char *name, int *val);

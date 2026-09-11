@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.24...3.25)
+cmake_minimum_required(VERSION 3.28...3.30)
 
 add_library(obs-dal-plugin MODULE)
 add_library(OBS::dal-plugin ALIAS obs-dal-plugin)
@@ -52,6 +52,8 @@ set_target_properties_obs(
 )
 
 set_property(TARGET obs-dal-plugin PROPERTY OSX_ARCHITECTURES x86_64 arm64)
+
+target_compile_options(obs-dal-plugin PRIVATE "-Wno-deprecated-declarations")
 
 string(TIMESTAMP CURRENT_YEAR "%Y")
 set_target_xcode_properties(

@@ -9,135 +9,107 @@
 #include <ajantv2/includes/ntv2signalrouter.h>
 #include <ajantv2/includes/ntv2utils.h>
 
-void filter_io_selection_input_list(const std::string &cardID,
-				    const std::string &channelOwner,
-				    obs_property_t *list)
+void filter_io_selection_input_list(const std::string &cardID, const std::string &channelOwner, obs_property_t *list)
 {
 	auto &cardManager = aja::CardManager::Instance();
 	auto cardEntry = cardManager.GetCardEntry(cardID);
 	if (!cardEntry) {
-		blog(LOG_DEBUG,
-		     "filter_io_selection_input_list: Card Entry not found for %s",
-		     cardID.c_str());
+		blog(LOG_DEBUG, "filter_io_selection_input_list: Card Entry not found for %s", cardID.c_str());
 		return;
 	}
 
 	NTV2DeviceID deviceID = DEVICE_ID_NOTFOUND;
 	CNTV2Card *card = cardEntry->GetCard();
-	if (card)
+	if (card) {
 		deviceID = card->GetDeviceID();
+	}
 
 	// Gray out the IOSelection list items that are in use by other plugin instances
 	for (size_t idx = 0; idx < obs_property_list_item_count(list); idx++) {
-		auto io_select = static_cast<IOSelection>(
-			obs_property_list_item_int(list, idx));
+		auto io_select = static_cast<IOSelection>(obs_property_list_item_int(list, idx));
 
 		if (io_select == IOSelection::Invalid) {
 			obs_property_list_item_disable(list, idx, false);
 			continue;
 		}
 
-		bool enabled = cardEntry->InputSelectionReady(
-			io_select, deviceID, channelOwner);
+		bool enabled = cardEntry->InputSelectionReady(io_select, deviceID, channelOwner);
 		obs_property_list_item_disable(list, idx, !enabled);
-		blog(LOG_DEBUG, "IOSelection %s = %s",
-		     aja::IOSelectionToString(io_select).c_str(),
+		blog(LOG_DEBUG, "IOSelection %s = %s", aja::IOSelectionToString(io_select).c_str(),
 		     enabled ? "enabled" : "disabled");
 	}
 }
 
-void filter_io_selection_output_list(const std::string &cardID,
-				     const std::string &channelOwner,
-				     obs_property_t *list)
+void filter_io_selection_output_list(const std::string &cardID, const std::string &channelOwner, obs_property_t *list)
 {
 	auto &cardManager = aja::CardManager::Instance();
 	auto cardEntry = cardManager.GetCardEntry(cardID);
 	if (!cardEntry) {
-		blog(LOG_DEBUG,
-		     "filter_io_selection_output_list: Card Entry not found for %s",
-		     cardID.c_str());
+		blog(LOG_DEBUG, "filter_io_selection_output_list: Card Entry not found for %s", cardID.c_str());
 		return;
 	}
 
 	NTV2DeviceID deviceID = DEVICE_ID_NOTFOUND;
 	CNTV2Card *card = cardEntry->GetCard();
-	if (card)
+	if (card) {
 		deviceID = card->GetDeviceID();
+	}
 
 	// Gray out the IOSelection list items that are in use by other plugin instances
 	for (size_t idx = 0; idx < obs_property_list_item_count(list); idx++) {
-		auto io_select = static_cast<IOSelection>(
-			obs_property_list_item_int(list, idx));
+		auto io_select = static_cast<IOSelection>(obs_property_list_item_int(list, idx));
 		if (io_select == IOSelection::Invalid) {
 			obs_property_list_item_disable(list, idx, false);
 			continue;
 		}
 
-		bool enabled = cardEntry->OutputSelectionReady(
-			io_select, deviceID, channelOwner);
+		bool enabled = cardEntry->OutputSelectionReady(io_select, deviceID, channelOwner);
 		obs_property_list_item_disable(list, idx, !enabled);
-		blog(LOG_DEBUG, "IOSelection %s = %s",
-		     aja::IOSelectionToString(io_select).c_str(),
+		blog(LOG_DEBUG, "IOSelection %s = %s", aja::IOSelectionToString(io_select).c_str(),
 		     enabled ? "enabled" : "disabled");
 	}
 }
 
-void populate_io_selection_input_list(const std::string &cardID,
-				      const std::string &channelOwner,
-				      NTV2DeviceID deviceID,
+void populate_io_selection_input_list(const std::string &cardID, const std::string &channelOwner, NTV2DeviceID deviceID,
 				      obs_property_t *list)
 {
 	obs_property_list_clear(list);
-	obs_property_list_add_int(list,
-				  obs_module_text(kUIPropIOSelectNone.text),
+	obs_property_list_add_int(list, obs_module_text(kUIPropIOSelectNone.text),
 				  static_cast<long long>(IOSelection::Invalid));
 
-	for (auto i = 0; i < static_cast<int32_t>(IOSelection::NumIOSelections);
-	     i++) {
+	for (auto i = 0; i < static_cast<int32_t>(IOSelection::NumIOSelections); i++) {
 		auto ioSelect = static_cast<IOSelection>(i);
-		if (ioSelect == IOSelection::AnalogIn)
+		if (ioSelect == IOSelection::AnalogIn) {
 			continue;
+		}
 		if (aja::DeviceCanDoIOSelectionIn(deviceID, ioSelect)) {
-			obs_property_list_add_int(
-				list,
-				aja::IOSelectionToString(ioSelect).c_str(),
-				static_cast<long long>(ioSelect));
+			obs_property_list_add_int(list, aja::IOSelectionToString(ioSelect).c_str(),
+						  static_cast<long long>(ioSelect));
 		}
 	}
 
 	filter_io_selection_input_list(cardID, channelOwner, list);
 }
 
-void populate_io_selection_output_list(const std::string &cardID,
-				       const std::string &channelOwner,
-				       NTV2DeviceID deviceID,
-				       obs_property_t *list)
+void populate_io_selection_output_list(const std::string &cardID, const std::string &channelOwner,
+				       NTV2DeviceID deviceID, obs_property_t *list)
 {
 	obs_property_list_clear(list);
-	obs_property_list_add_int(list,
-				  obs_module_text(kUIPropIOSelectNone.text),
+	obs_property_list_add_int(list, obs_module_text(kUIPropIOSelectNone.text),
 				  static_cast<long long>(IOSelection::Invalid));
 
 	if (deviceID == DEVICE_ID_TTAP_PRO) {
-		obs_property_list_add_int(
-			list, "SDI & HDMI",
-			static_cast<long long>(IOSelection::HDMIMonitorOut));
+		obs_property_list_add_int(list, "SDI & HDMI", static_cast<long long>(IOSelection::HDMIMonitorOut));
 	} else {
-		for (auto i = 0;
-		     i < static_cast<int32_t>(IOSelection::NumIOSelections);
-		     i++) {
+		for (auto i = 0; i < static_cast<int32_t>(IOSelection::NumIOSelections); i++) {
 			auto ioSelect = static_cast<IOSelection>(i);
-			if (ioSelect == IOSelection::Invalid ||
-			    ioSelect == IOSelection::AnalogOut)
+			if (ioSelect == IOSelection::Invalid || ioSelect == IOSelection::AnalogOut) {
 				continue;
+			}
 
-			if (aja::DeviceCanDoIOSelectionOut(deviceID,
-							   ioSelect)) {
-				obs_property_list_add_int(
-					list,
-					aja::IOSelectionToString(ioSelect)
-						.c_str(),
-					static_cast<long long>(ioSelect));
+			if (aja::DeviceCanDoIOSelectionOut(deviceID, ioSelect)) {
+				obs_property_list_add_int(list, aja::IOSelectionToString(ioSelect).c_str(),
+							  static_cast<long long>(ioSelect));
 			}
 		}
 	}
@@ -145,9 +117,8 @@ void populate_io_selection_output_list(const std::string &cardID,
 	filter_io_selection_output_list(cardID, channelOwner, list);
 }
 
-void populate_video_format_list(NTV2DeviceID deviceID, obs_property_t *list,
-				NTV2VideoFormat genlockFormat, bool want4KHFR,
-				bool matchFPS)
+void populate_video_format_list(NTV2DeviceID deviceID, obs_property_t *list, NTV2VideoFormat genlockFormat,
+				bool want4KHFR, bool matchFPS)
 {
 	VideoFormatList videoFormats = {};
 	VideoStandardList orderedStandards = {};
@@ -164,12 +135,14 @@ void populate_video_format_list(NTV2DeviceID deviceID, obs_property_t *list,
 	if (NTV2DeviceCanDo4KVideo(deviceID)) {
 		orderedStandards.push_back(NTV2_STANDARD_3840i);
 		orderedStandards.push_back(NTV2_STANDARD_3840x2160p);
-		if (want4KHFR)
+		if (want4KHFR) {
 			orderedStandards.push_back(NTV2_STANDARD_3840HFR);
+		}
 		orderedStandards.push_back(NTV2_STANDARD_4096i);
 		orderedStandards.push_back(NTV2_STANDARD_4096x2160p);
-		if (want4KHFR)
+		if (want4KHFR) {
 			orderedStandards.push_back(NTV2_STANDARD_4096HFR);
+		}
 	}
 
 	aja::GetSortedVideoFormats(deviceID, orderedStandards, videoFormats);
@@ -177,21 +150,21 @@ void populate_video_format_list(NTV2DeviceID deviceID, obs_property_t *list,
 		bool addFormat = true;
 
 		// Filter formats by framerate family if specified
-		if (genlockFormat != NTV2_FORMAT_UNKNOWN)
+		if (genlockFormat != NTV2_FORMAT_UNKNOWN) {
 			addFormat = IsMultiFormatCompatible(genlockFormat, vf);
+		}
 
 		struct obs_video_info ovi;
 		if (matchFPS && obs_get_video_info(&ovi)) {
-			NTV2FrameRate frameRate =
-				GetNTV2FrameRateFromVideoFormat(vf);
+			NTV2FrameRate frameRate = GetNTV2FrameRateFromVideoFormat(vf);
 			ULWord fpsNum = 0;
 			ULWord fpsDen = 0;
 			GetFramesPerSecond(frameRate, fpsNum, fpsDen);
-			uint32_t obsFrameTime =
-				1000000 * ovi.fps_den / ovi.fps_num;
+			uint32_t obsFrameTime = 1000000 * ovi.fps_den / ovi.fps_num;
 			uint32_t ajaFrameTime = 1000000 * fpsDen / fpsNum;
-			if (obsFrameTime != ajaFrameTime)
+			if (obsFrameTime != ajaFrameTime) {
 				addFormat = false;
+			}
 		}
 
 		if (addFormat) {
@@ -201,66 +174,52 @@ void populate_video_format_list(NTV2DeviceID deviceID, obs_property_t *list,
 	}
 }
 
-void populate_pixel_format_list(NTV2DeviceID deviceID,
-				const std::vector<NTV2PixelFormat> &fmts,
-				obs_property_t *list)
+void populate_pixel_format_list(NTV2DeviceID deviceID, const std::vector<NTV2PixelFormat> &fmts, obs_property_t *list)
 {
 	for (auto &&pf : fmts) {
 		if (NTV2DeviceCanDoFrameBufferFormat(deviceID, pf)) {
-			obs_property_list_add_int(
-				list,
-				NTV2FrameBufferFormatToString(pf, true).c_str(),
-				static_cast<long long>(pf));
+			obs_property_list_add_int(list, NTV2FrameBufferFormatToString(pf, true).c_str(),
+						  static_cast<long long>(pf));
 		}
 	}
 }
 
-void populate_sdi_transport_list(obs_property_t *list, NTV2DeviceID deviceID,
-				 bool capture)
+void populate_sdi_transport_list(obs_property_t *list, NTV2DeviceID deviceID, bool capture)
 {
 	if (capture) {
-		obs_property_list_add_int(list, obs_module_text("Auto"),
-					  kAutoDetect);
+		obs_property_list_add_int(list, obs_module_text("Auto"), kAutoDetect);
 	}
 	for (int i = 0; i < (int)SDITransport::Unknown; i++) {
 		SDITransport sdi_trx = static_cast<SDITransport>(i);
-		if (sdi_trx == SDITransport::SDI6G ||
-		    sdi_trx == SDITransport::SDI12G) {
-			if (!NTV2DeviceCanDo12GSDI(deviceID))
+		if (sdi_trx == SDITransport::SDI6G || sdi_trx == SDITransport::SDI12G) {
+			if (!NTV2DeviceCanDo12GSDI(deviceID)) {
 				continue;
+			}
 		}
 		// Disabling 12G in Output plugin until AJA 4K HFR bug is fixed
-		if (!capture && sdi_trx == SDITransport::SDI12G)
+		if (!capture && sdi_trx == SDITransport::SDI12G) {
 			continue;
-		obs_property_list_add_int(
-			list, aja::SDITransportToString(sdi_trx).c_str(),
-			static_cast<long long>(sdi_trx));
+		}
+		obs_property_list_add_int(list, aja::SDITransportToString(sdi_trx).c_str(),
+					  static_cast<long long>(sdi_trx));
 	}
 }
 
 void populate_sdi_4k_transport_list(obs_property_t *list)
 {
-	obs_property_list_add_int(
-		list,
-		aja::SDITransport4KToString(SDITransport4K::Squares).c_str(),
-		static_cast<long long>(SDITransport4K::Squares));
-	obs_property_list_add_int(
-		list,
-		aja::SDITransport4KToString(SDITransport4K::TwoSampleInterleave)
-			.c_str(),
-		static_cast<long long>(SDITransport4K::TwoSampleInterleave));
+	obs_property_list_add_int(list, aja::SDITransport4KToString(SDITransport4K::Squares).c_str(),
+				  static_cast<long long>(SDITransport4K::Squares));
+	obs_property_list_add_int(list, aja::SDITransport4KToString(SDITransport4K::TwoSampleInterleave).c_str(),
+				  static_cast<long long>(SDITransport4K::TwoSampleInterleave));
 }
 
-bool aja_video_format_changed(obs_properties_t *props, obs_property_t *list,
-			      obs_data_t *settings)
+bool aja_video_format_changed(obs_properties_t *props, obs_property_t *list, obs_data_t *settings)
 {
-	auto vid_fmt = static_cast<NTV2VideoFormat>(
-		obs_data_get_int(settings, kUIPropVideoFormatSelect.id));
+	auto vid_fmt = static_cast<NTV2VideoFormat>(obs_data_get_int(settings, kUIPropVideoFormatSelect.id));
 	size_t itemCount = obs_property_list_item_count(list);
 	bool itemFound = false;
 	for (size_t i = 0; i < itemCount; i++) {
-		auto itemFormat = static_cast<NTV2VideoFormat>(
-			obs_property_list_item_int(list, i));
+		auto itemFormat = static_cast<NTV2VideoFormat>(obs_property_list_item_int(list, i));
 		if (itemFormat == vid_fmt) {
 			itemFound = true;
 			break;
@@ -273,8 +232,7 @@ bool aja_video_format_changed(obs_properties_t *props, obs_property_t *list,
 		return true;
 	}
 
-	obs_property_t *sdi_4k_trx =
-		obs_properties_get(props, kUIPropSDITransport4K.id);
+	obs_property_t *sdi_4k_trx = obs_properties_get(props, kUIPropSDITransport4K.id);
 	obs_property_set_visible(sdi_4k_trx, NTV2_IS_4K_VIDEO_FORMAT(vid_fmt));
 
 	return true;
@@ -334,43 +292,36 @@ video_format AJAPixelFormatToOBSVideoFormat(NTV2PixelFormat pf)
 	return obs_video_format;
 }
 
-void GetSortedVideoFormats(NTV2DeviceID id, const VideoStandardList &standards,
-			   VideoFormatList &videoFormats)
+void GetSortedVideoFormats(NTV2DeviceID id, const VideoStandardList &standards, VideoFormatList &videoFormats)
 {
-	if (standards.empty())
+	if (standards.empty()) {
 		return;
+	}
 
 	VideoFormatMap videoFormatMap;
 
 	// Bin all the formats based on video standard
-	for (size_t i = (size_t)NTV2_FORMAT_UNKNOWN;
-	     i < (size_t)NTV2_MAX_NUM_VIDEO_FORMATS; i++) {
+	for (size_t i = (size_t)NTV2_FORMAT_UNKNOWN; i < (size_t)NTV2_MAX_NUM_VIDEO_FORMATS; i++) {
 		NTV2VideoFormat fmt = (NTV2VideoFormat)i;
 		NTV2Standard standard = GetNTV2StandardFromVideoFormat(fmt);
-		if (id != DEVICE_ID_NOTFOUND &&
-		    NTV2DeviceCanDoVideoFormat(id, fmt)) {
+		if (id != DEVICE_ID_NOTFOUND && NTV2DeviceCanDoVideoFormat(id, fmt)) {
 			if (videoFormatMap.count(standard)) {
 				videoFormatMap.at(standard).push_back(fmt);
 			} else {
 				std::vector<NTV2VideoFormat> v;
 				v.push_back(fmt);
 				videoFormatMap.insert(
-					std::pair<NTV2Standard,
-						  std::vector<NTV2VideoFormat>>(
-						standard, v));
+					std::pair<NTV2Standard, std::vector<NTV2VideoFormat>>(standard, v));
 			}
 		}
 	}
 
-	for (size_t v = (size_t)NTV2_STANDARD_1080;
-	     v < (size_t)NTV2_NUM_STANDARDS; v++) {
+	for (size_t v = (size_t)NTV2_STANDARD_1080; v < (size_t)NTV2_NUM_STANDARDS; v++) {
 		NTV2Standard standard = (NTV2Standard)v;
 
 		if (videoFormatMap.count(standard)) {
-			std::sort(videoFormatMap.at(standard).begin(),
-				  videoFormatMap.at(standard).end(),
-				  [&](const NTV2VideoFormat &d1,
-				      const NTV2VideoFormat &d2) {
+			std::sort(videoFormatMap.at(standard).begin(), videoFormatMap.at(standard).end(),
+				  [&](const NTV2VideoFormat &d1, const NTV2VideoFormat &d2) {
 					  std::string d1Str, d2Str;
 
 					  d1Str = NTV2VideoFormatToString(d1);
@@ -384,32 +335,26 @@ void GetSortedVideoFormats(NTV2DeviceID id, const VideoStandardList &standards,
 	for (size_t v = 0; v < standards.size(); v++) {
 		NTV2Standard standard = standards.at(v);
 		if (videoFormatMap.count(standard)) {
-			for (size_t i = 0;
-			     i < videoFormatMap.at(standard).size(); i++) {
-				NTV2VideoFormat vf =
-					videoFormatMap.at(standard).at(i);
+			for (size_t i = 0; i < videoFormatMap.at(standard).size(); i++) {
+				NTV2VideoFormat vf = videoFormatMap.at(standard).at(i);
 				videoFormats.push_back(vf);
 			}
 		}
 	}
 }
 
-NTV2VideoFormat HandleSpecialCaseFormats(IOSelection io, NTV2VideoFormat vf,
-					 NTV2DeviceID id)
+NTV2VideoFormat HandleSpecialCaseFormats(IOSelection io, NTV2VideoFormat vf, NTV2DeviceID id)
 {
 	// 1080p Level-B formats and ST372M
-	if (NTV2_VIDEO_FORMAT_IS_B(vf) &&
-	    !(IsSDITwoWireIOSelection(io) && NTV2_IS_HD_VIDEO_FORMAT(vf))) {
+	if (NTV2_VIDEO_FORMAT_IS_B(vf) && !(IsSDITwoWireIOSelection(io) && NTV2_IS_HD_VIDEO_FORMAT(vf))) {
 		vf = aja::GetLevelAFormatForLevelBFormat(vf);
 	}
 	// UHD/4K Square Division auto-detect
-	if ((io == IOSelection::SDI1__4 || io == IOSelection::SDI5__8) &&
-	    NTV2_IS_HD_VIDEO_FORMAT(vf)) {
+	if ((io == IOSelection::SDI1__4 || io == IOSelection::SDI5__8) && NTV2_IS_HD_VIDEO_FORMAT(vf)) {
 		vf = GetQuadSizedVideoFormat(vf, true);
 	}
 	// Kona5/io4K+ auto-detection of UHD/4K 6G/12G SDI formats.
-	if (aja::IsSDIOneWireIOSelection(io) && NTV2_IS_4K_VIDEO_FORMAT(vf) &&
-	    !NTV2_IS_SQUARE_DIVISION_FORMAT(vf) &&
+	if (aja::IsSDIOneWireIOSelection(io) && NTV2_IS_4K_VIDEO_FORMAT(vf) && !NTV2_IS_SQUARE_DIVISION_FORMAT(vf) &&
 	    !NTV2DeviceCanDo12gRouting(id)) {
 		vf = GetQuadSizedVideoFormat(GetQuarterSizedVideoFormat(vf));
 	}
@@ -420,8 +365,9 @@ NTV2Channel WidgetIDToChannel(NTV2WidgetID id)
 {
 #if AJA_NTV2_SDK_VERSION_MAJOR <= 16 && AJA_NTV2_SDK_VERSION_MINOR <= 2
 	// Workaround for bug in NTV2 SDK <= 16.2 where NTV2_WgtSDIMonOut1 maps incorrectly to NTV2_CHANNEL1.
-	if (id == NTV2_WgtSDIMonOut1)
+	if (id == NTV2_WgtSDIMonOut1) {
 		return NTV2_CHANNEL5;
+	}
 #endif
 	return CNTV2SignalRouter::WidgetIDToChannel(id);
 }
@@ -437,8 +383,9 @@ uint32_t CardNumFramestores(NTV2DeviceID id)
 
 uint32_t CardNumAudioSystems(NTV2DeviceID id)
 {
-	if (id == DEVICE_ID_KONALHI || id == DEVICE_ID_KONALHEPLUS)
+	if (id == DEVICE_ID_KONALHI || id == DEVICE_ID_KONALHEPLUS) {
 		return 2;
+	}
 
 	return NTV2DeviceGetNumAudioSystems(id);
 }
@@ -452,43 +399,40 @@ bool CardCanDoSDIMonitorOutput(NTV2DeviceID id)
 // Cards with a dedicated HDMI Monitor Input, tied to "Framestore 4".
 bool CardCanDoHDMIMonitorInput(NTV2DeviceID id)
 {
-	return (id == DEVICE_ID_IO4K || id == DEVICE_ID_IO4KUFC ||
-		id == DEVICE_ID_IO4KPLUS || id == DEVICE_ID_IOXT ||
+	return (id == DEVICE_ID_IO4K || id == DEVICE_ID_IO4KUFC || id == DEVICE_ID_IO4KPLUS || id == DEVICE_ID_IOXT ||
 		id == DEVICE_ID_IOX3 || id == DEVICE_ID_KONALHI);
 }
 
 // Cards with a dedicated HDMI Monitor Output, tied to "Framestore 4".
 bool CardCanDoHDMIMonitorOutput(NTV2DeviceID id)
 {
-	return (id == DEVICE_ID_IO4K || id == DEVICE_ID_IO4KPLUS ||
-		id == DEVICE_ID_IOXT || id == DEVICE_ID_IOX3 ||
-		id == DEVICE_ID_KONA4 || id == DEVICE_ID_KONA5 ||
-		id == DEVICE_ID_KONA5_8K || id == DEVICE_ID_KONA5_2X4K ||
-		id == DEVICE_ID_KONA5_8KMK);
+	return (id == DEVICE_ID_IO4K || id == DEVICE_ID_IO4KPLUS || id == DEVICE_ID_IOXT || id == DEVICE_ID_IOX3 ||
+		id == DEVICE_ID_KONA4 || id == DEVICE_ID_KONA5 || id == DEVICE_ID_KONA5_8K ||
+		id == DEVICE_ID_KONA5_2X4K || id == DEVICE_ID_KONA5_8KMK);
 }
 
 // Cards capable of 1x SDI at 6G/12G.
 bool CardCanDo1xSDI12G(NTV2DeviceID id)
 {
-	return (id == DEVICE_ID_KONA5_8K || id == DEVICE_ID_KONA5_8KMK ||
-		id == DEVICE_ID_KONA5 || id == DEVICE_ID_KONA5_2X4K ||
-		id == DEVICE_ID_IO4KPLUS || id == DEVICE_ID_CORVID44_12G);
+	return (id == DEVICE_ID_KONA5_8K || id == DEVICE_ID_KONA5_8KMK || id == DEVICE_ID_KONA5 ||
+		id == DEVICE_ID_KONA5_2X4K || id == DEVICE_ID_IO4KPLUS || id == DEVICE_ID_CORVID44_12G);
 }
 
 // Check for 3G level-B SDI on the wire.
 bool Is3GLevelB(CNTV2Card *card, NTV2Channel channel)
 {
-	if (!card)
+	if (!card) {
 		return false;
+	}
 
 	bool levelB = false;
 	auto deviceID = card->GetDeviceID();
 	UWord channelIndex = static_cast<UWord>(channel);
 
-	if (NTV2DeviceCanDo3GIn(deviceID, channelIndex) ||
-	    NTV2DeviceCanDo12GIn(deviceID, channelIndex)) {
-		if (!card->GetSDIInput3GbPresent(levelB, channel))
+	if (NTV2DeviceCanDo3GIn(deviceID, channelIndex) || NTV2DeviceCanDo12GIn(deviceID, channelIndex)) {
+		if (!card->GetSDIInput3GbPresent(levelB, channel)) {
 			return false;
+		}
 	}
 
 	return levelB;
@@ -553,8 +497,7 @@ bool IsSingleSDIDevice(NTV2DeviceID id)
 
 bool IsIODevice(NTV2DeviceID id)
 {
-	return (id == DEVICE_ID_IOXT || id == DEVICE_ID_IOX3 ||
-		id == DEVICE_ID_IO4K || id == DEVICE_ID_IO4KPLUS ||
+	return (id == DEVICE_ID_IOXT || id == DEVICE_ID_IOX3 || id == DEVICE_ID_IO4K || id == DEVICE_ID_IO4KPLUS ||
 		id == DEVICE_ID_IOIP_2022 || id == DEVICE_ID_IOIP_2110);
 }
 
@@ -778,8 +721,7 @@ void IOSelectionToInputSources(IOSelection io, NTV2InputSourceSet &inputSources)
 	}
 }
 
-void IOSelectionToOutputDests(IOSelection io,
-			      NTV2OutputDestinations &outputDests)
+void IOSelectionToOutputDests(IOSelection io, NTV2OutputDestinations &outputDests)
 {
 	switch (io) {
 	case IOSelection::SDI1:
@@ -869,12 +811,14 @@ bool DeviceCanDoIOSelectionIn(NTV2DeviceID id, IOSelection io)
 		size_t canDo = 0;
 		if (numSrcs > 0) {
 			for (auto &&inp : inputSources) {
-				if (NTV2DeviceCanDoInputSource(id, inp))
+				if (NTV2DeviceCanDoInputSource(id, inp)) {
 					canDo++;
+				}
 			}
 
-			if (canDo == numSrcs)
+			if (canDo == numSrcs) {
 				return true;
+			}
 		}
 	}
 	return false;
@@ -889,12 +833,14 @@ bool DeviceCanDoIOSelectionOut(NTV2DeviceID id, IOSelection io)
 		size_t canDo = 0;
 		if (numOuts > 0) {
 			for (auto &&out : outputDests) {
-				if (NTV2DeviceCanDoOutputDestination(id, out))
+				if (NTV2DeviceCanDoOutputDestination(id, out)) {
 					canDo++;
+				}
 			}
 
-			if (canDo == numOuts)
+			if (canDo == numOuts) {
 				return true;
+			}
 		}
 	}
 	return false;
@@ -952,24 +898,23 @@ bool IsSDIFourWireIOSelection(IOSelection io)
 
 bool IsMonitorOutputSelection(NTV2DeviceID id, IOSelection io)
 {
-	if (CardCanDoSDIMonitorOutput(id) && io == IOSelection::SDI5)
+	if (CardCanDoSDIMonitorOutput(id) && io == IOSelection::SDI5) {
 		return true;
+	}
 
-	if (CardCanDoHDMIMonitorOutput(id) && io == IOSelection::HDMIMonitorOut)
+	if (CardCanDoHDMIMonitorOutput(id) && io == IOSelection::HDMIMonitorOut) {
 		return true;
+	}
 
 	return false;
 }
 
 bool IsIOSelectionSDI(IOSelection io)
 {
-	if (io == IOSelection::SDI1 || io == IOSelection::SDI2 ||
-	    io == IOSelection::SDI3 || io == IOSelection::SDI4 ||
-	    io == IOSelection::SDI5 || io == IOSelection::SDI6 ||
-	    io == IOSelection::SDI7 || io == IOSelection::SDI8 ||
-	    io == IOSelection::SDI1_2 || io == IOSelection::SDI3_4 ||
-	    io == IOSelection::SDI5_6 || io == IOSelection::SDI7_8 ||
-	    io == IOSelection::SDI1__4 || io == IOSelection::SDI5__8) {
+	if (io == IOSelection::SDI1 || io == IOSelection::SDI2 || io == IOSelection::SDI3 || io == IOSelection::SDI4 ||
+	    io == IOSelection::SDI5 || io == IOSelection::SDI6 || io == IOSelection::SDI7 || io == IOSelection::SDI8 ||
+	    io == IOSelection::SDI1_2 || io == IOSelection::SDI3_4 || io == IOSelection::SDI5_6 ||
+	    io == IOSelection::SDI7_8 || io == IOSelection::SDI1__4 || io == IOSelection::SDI5__8) {
 		return true;
 	}
 	return false;
@@ -977,10 +922,8 @@ bool IsIOSelectionSDI(IOSelection io)
 
 bool IsIOSelectionHDMI(IOSelection io)
 {
-	if (io == IOSelection::HDMI1 || io == IOSelection::HDMI2 ||
-	    io == IOSelection::HDMI3 || io == IOSelection::HDMI4 ||
-	    io == IOSelection::HDMIMonitorIn ||
-	    io == IOSelection::HDMIMonitorOut) {
+	if (io == IOSelection::HDMI1 || io == IOSelection::HDMI2 || io == IOSelection::HDMI3 ||
+	    io == IOSelection::HDMI4 || io == IOSelection::HDMIMonitorIn || io == IOSelection::HDMIMonitorOut) {
 		return true;
 	}
 	return false;
@@ -991,8 +934,7 @@ std::string MakeCardID(CNTV2Card &card)
 	std::string cardID;
 	if (card.GetSerialNumberString(cardID)) {
 		// Try to construct CardID from device ID and serial number...
-		cardID = NTV2DeviceIDToString(card.GetDeviceID(), false) + "_" +
-			 cardID;
+		cardID = NTV2DeviceIDToString(card.GetDeviceID(), false) + "_" + cardID;
 	} else {
 		// ...otherwise fall back to the CNTV2DeviceScanner method.
 		cardID = CNTV2DeviceScanner::GetDeviceRefName(card);
@@ -1019,31 +961,27 @@ RasterDefinition DetermineRasterDefinition(NTV2VideoFormat vf)
 
 inline bool IsStandard1080i(NTV2Standard standard)
 {
-	if (standard == NTV2_STANDARD_1080 ||
-	    standard == NTV2_STANDARD_2Kx1080i) {
+	if (standard == NTV2_STANDARD_1080 || standard == NTV2_STANDARD_2Kx1080i) {
 		return true;
 	}
 	return false;
 }
 inline bool IsStandard1080p(NTV2Standard standard)
 {
-	if (standard == NTV2_STANDARD_1080p || standard == NTV2_STANDARD_2K ||
-	    standard == NTV2_STANDARD_2Kx1080p) {
+	if (standard == NTV2_STANDARD_1080p || standard == NTV2_STANDARD_2K || standard == NTV2_STANDARD_2Kx1080p) {
 		return true;
 	}
 	return false;
 }
 
-VPIDStandard DetermineVPIDStandard(IOSelection io, NTV2VideoFormat vf,
-				   NTV2PixelFormat pf, SDITransport trx,
+VPIDStandard DetermineVPIDStandard(IOSelection io, NTV2VideoFormat vf, NTV2PixelFormat pf, SDITransport trx,
 				   SDITransport4K t4k)
 {
 	VPIDStandard vpid = VPIDStandard_Unknown;
 	auto rd = aja::DetermineRasterDefinition(vf);
 	auto standard = GetNTV2StandardFromVideoFormat(vf);
 	bool is_rgb = NTV2_IS_FBF_RGB(pf);
-	bool is_hfr =
-		NTV2_IS_HIGH_NTV2FrameRate(GetNTV2FrameRateFromVideoFormat(vf));
+	bool is_hfr = NTV2_IS_HIGH_NTV2FrameRate(GetNTV2FrameRateFromVideoFormat(vf));
 	if (rd == RasterDefinition::SD) {
 		vpid = VPIDStandard_483_576;
 	} else if (rd == RasterDefinition::HD) {
@@ -1053,21 +991,17 @@ VPIDStandard DetermineVPIDStandard(IOSelection io, NTV2VideoFormat vf,
 				if (standard == NTV2_STANDARD_720) {
 					if (trx == SDITransport::SingleLink) {
 						vpid = VPIDStandard_720;
-					} else if (trx ==
-						   SDITransport::SDI3Ga) {
+					} else if (trx == SDITransport::SDI3Ga) {
 						vpid = VPIDStandard_720_3Ga;
-					} else if (trx ==
-						   SDITransport::SDI3Gb) {
+					} else if (trx == SDITransport::SDI3Gb) {
 						vpid = VPIDStandard_720_3Gb;
 					}
 				} else if (IsStandard1080p(standard)) {
 					if (trx == SDITransport::SingleLink) {
 						vpid = VPIDStandard_1080;
-					} else if (trx ==
-						   SDITransport::SDI3Ga) {
+					} else if (trx == SDITransport::SDI3Ga) {
 						vpid = VPIDStandard_1080_3Ga;
-					} else if (trx ==
-						   SDITransport::SDI3Gb) {
+					} else if (trx == SDITransport::SDI3Gb) {
 						vpid = VPIDStandard_1080_3Gb;
 					}
 				}
@@ -1076,32 +1010,31 @@ VPIDStandard DetermineVPIDStandard(IOSelection io, NTV2VideoFormat vf,
 					vpid = VPIDStandard_720;
 				} else if (IsStandard1080i(standard)) {
 					vpid = VPIDStandard_1080;
-				} else if (IsStandard1080p(standard) &&
-					   trx == SDITransport::SDI3Ga) {
+				} else if (IsStandard1080p(standard) && trx == SDITransport::SDI3Ga) {
 					vpid = VPIDStandard_1080_3Ga;
-				} else if (IsStandard1080p(standard) &&
-					   trx == SDITransport::SDI3Gb) {
+				} else if (IsStandard1080p(standard) && trx == SDITransport::SDI3Gb) {
 					vpid = VPIDStandard_1080_3Gb;
 				}
 			}
 		} else if (aja::IsSDITwoWireIOSelection(io)) {
 			if (is_rgb) {
 				if (standard == NTV2_STANDARD_720) {
-					if (trx == SDITransport::SDI3Ga)
+					if (trx == SDITransport::SDI3Ga) {
 						vpid = VPIDStandard_720_3Ga;
-					else if (trx == SDITransport::SDI3Gb)
+					} else if (trx == SDITransport::SDI3Gb) {
 						vpid = VPIDStandard_720_3Gb;
+					}
 				} else if (IsStandard1080p(standard)) {
 					if (trx == SDITransport::HDDualLink) {
 						vpid = VPIDStandard_1080_DualLink;
-					} else if (trx == SDITransport::SDI3Ga)
+					} else if (trx == SDITransport::SDI3Ga) {
 						vpid = VPIDStandard_1080_Dual_3Ga;
-					else if (trx == SDITransport::SDI3Gb)
+					} else if (trx == SDITransport::SDI3Gb) {
 						vpid = VPIDStandard_1080_Dual_3Gb;
+					}
 				}
 			} else {
-				if (IsStandard1080p(standard) &&
-				    trx == SDITransport::HDDualLink) {
+				if (IsStandard1080p(standard) && trx == SDITransport::HDDualLink) {
 					vpid = VPIDStandard_1080_DualLink;
 				}
 			}
@@ -1130,13 +1063,10 @@ VPIDStandard DetermineVPIDStandard(IOSelection io, NTV2VideoFormat vf,
 				// YCbCr
 				if (t4k == SDITransport4K::Squares) {
 					vpid = VPIDStandard_1080;
-				} else if (t4k ==
-					   SDITransport4K::TwoSampleInterleave) {
-					if (is_hfr &&
-					    trx == SDITransport::SDI3Ga) {
+				} else if (t4k == SDITransport4K::TwoSampleInterleave) {
+					if (is_hfr && trx == SDITransport::SDI3Ga) {
 						vpid = VPIDStandard_2160_QuadLink_3Ga;
-					} else if (is_hfr &&
-						   trx == SDITransport::SDI3Gb) {
+					} else if (is_hfr && trx == SDITransport::SDI3Gb) {
 						vpid = VPIDStandard_2160_QuadDualLink_3Gb;
 					} else {
 						vpid = VPIDStandard_2160_DualLink;
@@ -1148,8 +1078,7 @@ VPIDStandard DetermineVPIDStandard(IOSelection io, NTV2VideoFormat vf,
 				if (t4k == SDITransport4K::Squares) {
 					if (trx == SDITransport::SDI3Ga) {
 						vpid = VPIDStandard_1080_3Ga;
-					} else if (trx ==
-						   SDITransport::SDI3Gb) {
+					} else if (trx == SDITransport::SDI3Gb) {
 						vpid = VPIDStandard_1080_DualLink_3Gb;
 					}
 				}
@@ -1158,18 +1087,15 @@ VPIDStandard DetermineVPIDStandard(IOSelection io, NTV2VideoFormat vf,
 				if (t4k == SDITransport4K::Squares) {
 					if (trx == SDITransport::SDI3Ga) {
 						vpid = VPIDStandard_1080_3Ga;
-					} else if (trx ==
-						   SDITransport::SDI3Gb) {
+					} else if (trx == SDITransport::SDI3Gb) {
 						vpid = VPIDStandard_1080_DualLink_3Gb;
 					} else {
 						vpid = VPIDStandard_1080;
 					}
-				} else if (t4k ==
-					   SDITransport4K::TwoSampleInterleave) {
+				} else if (t4k == SDITransport4K::TwoSampleInterleave) {
 					if (trx == SDITransport::SDI3Ga) {
 						vpid = VPIDStandard_2160_QuadLink_3Ga;
-					} else if (trx ==
-						   SDITransport::SDI3Gb) {
+					} else if (trx == SDITransport::SDI3Gb) {
 						vpid = VPIDStandard_2160_QuadDualLink_3Gb;
 					}
 				}

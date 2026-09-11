@@ -11,16 +11,15 @@ RoutingConfigurator::RoutingConfigurator()
 	build_preset_table();
 }
 
-void RoutingConfigurator::AddPreset(const std::string &name,
-				    const RoutingPreset &preset)
+void RoutingConfigurator::AddPreset(const std::string &name, const RoutingPreset &preset)
 {
-	if (m_presets.find(name) != m_presets.end())
+	if (m_presets.find(name) != m_presets.end()) {
 		return;
+	}
 	m_presets.insert(RoutingPresetPair{name, preset});
 }
 
-bool RoutingConfigurator::PresetByName(const std::string &name,
-				       RoutingPreset &preset) const
+bool RoutingConfigurator::PresetByName(const std::string &name, RoutingPreset &preset) const
 {
 	if (m_presets.find(name) != m_presets.end()) {
 		preset = m_presets.at(name);
@@ -1780,8 +1779,9 @@ void RoutingConfigurator::build_preset_table()
 		  false,
 		  false}},
 	};
-	for (auto &&rp : kRoutingPresets)
+	for (auto &&rp : kRoutingPresets) {
 		AddPreset(std::move(rp.first), std::move(rp.second));
+	}
 }
 
 RoutingPresetMap RoutingConfigurator::GetPresetTable() const
@@ -1789,23 +1789,17 @@ RoutingPresetMap RoutingConfigurator::GetPresetTable() const
 	return m_presets;
 }
 
-bool RoutingConfigurator::FindFirstPreset(ConnectionKind kind, NTV2DeviceID id,
-					  NTV2Mode mode, NTV2VideoFormat vf,
-					  NTV2PixelFormat pf,
-					  VPIDStandard standard,
-					  HDMIWireFormat hwf,
+bool RoutingConfigurator::FindFirstPreset(ConnectionKind kind, NTV2DeviceID id, NTV2Mode mode, NTV2VideoFormat vf,
+					  NTV2PixelFormat pf, VPIDStandard standard, HDMIWireFormat hwf,
 					  RoutingPreset &preset)
 {
-	if (NTV2DeviceCanDoVideoFormat(id, vf) &&
-	    NTV2DeviceCanDoFrameBufferFormat(id, pf)) {
+	if (NTV2DeviceCanDoVideoFormat(id, vf) && NTV2DeviceCanDoFrameBufferFormat(id, pf)) {
 		const auto &rd = DetermineRasterDefinition(vf);
 		bool is_rgb = NTV2_IS_FBF_RGB(pf);
 		std::vector<RoutingPresetPair> query;
 		for (const auto &p : m_presets) {
-			if (p.second.kind == kind && p.second.mode == mode &&
-			    p.second.raster_def == rd &&
-			    p.second.is_rgb == is_rgb &&
-			    p.second.vpid_standard == standard &&
+			if (p.second.kind == kind && p.second.mode == mode && p.second.raster_def == rd &&
+			    p.second.is_rgb == is_rgb && p.second.vpid_standard == standard &&
 			    p.second.hdmi_wire_format == hwf) {
 				query.push_back(p);
 			}
@@ -1813,8 +1807,9 @@ bool RoutingConfigurator::FindFirstPreset(ConnectionKind kind, NTV2DeviceID id,
 		RoutingPresets device_presets;
 		RoutingPresets non_device_presets;
 		for (auto &q : query) {
-			if (q.second.device_ids.size() == 0)
+			if (q.second.device_ids.size() == 0) {
 				non_device_presets.push_back(q.second);
+			}
 			for (const auto &device_id : q.second.device_ids) {
 				if (device_id == id) {
 					device_presets.push_back(q.second);

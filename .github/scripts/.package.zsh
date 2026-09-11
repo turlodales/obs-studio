@@ -21,8 +21,8 @@ if (( ! ${+CI} )) {
   exit 1
 }
 
-autoload -Uz is-at-least && if ! is-at-least 5.2; then
-  print -u2 -PR "%F{1}${funcstack[1]##*/}:%f Running on Zsh version %B${ZSH_VERSION}%b, but Zsh %B5.2%b is the minimum supported version. Upgrade Zsh to fix this issue."
+autoload -Uz is-at-least && if ! is-at-least 5.9; then
+  print -u2 -PR "%F{1}${funcstack[1]##*/}:%f Running on Zsh version %B${ZSH_VERSION}%b, but Zsh %B5.9%b is the minimum supported version. Upgrade Zsh to fix this issue."
   exit 1
 fi
 
@@ -40,7 +40,6 @@ package() {
   if (( ! ${+SCRIPT_HOME} )) typeset -g SCRIPT_HOME=${ZSH_ARGZERO:A:h}
   local host_os=${${(s:-:)ZSH_ARGZERO:t:r}[2]}
   local project_root=${SCRIPT_HOME:A:h:h}
-  local buildspec_file=${project_root}/buildspec.json
 
   fpath=(${SCRIPT_HOME}/utils.zsh ${fpath})
   autoload -Uz log_error log_output log_group check_${host_os}
@@ -104,9 +103,7 @@ package() {
 
   check_${host_os}
 
-  local product_name
-  read -r product_name <<< \
-    "$(jq -r '.name' ${buildspec_file})"
+  local product_name='obs-studio'
 
   local commit_version='0.0.0'
   local commit_distance='0'

@@ -6,11 +6,7 @@ option(OBS_COMPILE_DEPRECATION_AS_WARNING "Downgrade deprecation warnings to act
 mark_as_advanced(OBS_COMPILE_DEPRECATION_AS_WARNING)
 
 # Set C and C++ language standards to C17 and C++17
-if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.21)
-  set(CMAKE_C_STANDARD 17)
-else()
-  set(CMAKE_C_STANDARD 11)
-endif()
+set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED TRUE)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
@@ -88,4 +84,42 @@ endif()
 
 if(NOT DEFINED CMAKE_COMPILE_WARNING_AS_ERROR)
   set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
+endif()
+
+# Enable interprocedural optimization
+message(STATUS "Checking for interprocedural optimization support")
+if(NOT DEFINED HAS_INTERPROCEDURAL_OPTIMIZATION)
+  include(CheckIPOSupported)
+  check_ipo_supported(RESULT _ipo_result OUTPUT _ipo_output)
+  set(
+    HAS_INTERPROCEDURAL_OPTIMIZATION
+    ${_ipo_result}
+    CACHE BOOL
+    "Result of compiler check for interprocedural optimization"
+    FORCE
+  )
+
+  if(HAS_INTERPROCEDURAL_OPTIMIZATION)
+    message(STATUS "Checking for interprocedural optimization support - available")
+  else()
+    message(STATUS "Checking for interprocedural optimization support - unavailable")
+  endif()
+
+  mark_as_advanced(HAS_INTERPROCEDURAL_OPTIMIZATION)
+  unset(_ipo_result)
+  unset(_ipo_output)
+endif()
+
+if(HAS_INTERPROCEDURAL_OPTIMIZATION)
+  message(STATUS "Checking for interprocedural optimization support - enabled [Release, MinSizeRel]")
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_DEBUG OFF)
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO OFF)
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_MINSIZEREL ON)
+else()
+  message(STATUS "Checking for interprocedural optimization support - disabled")
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_DEBUG OFF)
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO OFF)
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE OFF)
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_MINSIZEREL OFF)
 endif()

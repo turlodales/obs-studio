@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.24...3.25)
+cmake_minimum_required(VERSION 3.28...3.30)
 
 find_package(Detours REQUIRED)
 find_package(Vulkan REQUIRED)
@@ -54,8 +54,17 @@ if(TARGET Vulkan::Vulkan)
   target_compile_definitions(graphics-hook PRIVATE COMPILE_VULKAN_HOOK)
 endif()
 
-if(OBS_PARENT_ARCHITECTURE STREQUAL CMAKE_GENERATOR_PLATFORM)
-  if(CMAKE_GENERATOR_PLATFORM STREQUAL x64)
+if(OBS_PARENT_ARCHITECTURE STREQUAL CMAKE_VS_PLATFORM_NAME)
+  if(CMAKE_VS_PLATFORM_NAME STREQUAL ARM64)
+    add_custom_command(
+      TARGET graphics-hook
+      POST_BUILD
+      COMMAND "${CMAKE_COMMAND}" --build ${CMAKE_SOURCE_DIR}/build_x64 --config $<CONFIG> -t graphics-hook
+      COMMENT "Build x64 graphics-hook"
+    )
+  endif()
+
+  if(CMAKE_VS_PLATFORM_NAME MATCHES "(ARM64|x64)")
     add_custom_command(
       TARGET graphics-hook
       POST_BUILD
@@ -67,7 +76,9 @@ if(OBS_PARENT_ARCHITECTURE STREQUAL CMAKE_GENERATOR_PLATFORM)
   add_dependencies(win-capture graphics-hook)
 endif()
 
-if(CMAKE_GENERATOR_PLATFORM STREQUAL x64)
+if(CMAKE_VS_PLATFORM_NAME STREQUAL ARM64)
+  set(_OUTPUT_NAME graphics-hook-arm64)
+elseif(CMAKE_VS_PLATFORM_NAME STREQUAL x64)
   set(_OUTPUT_NAME graphics-hook64)
 else()
   set(_OUTPUT_NAME graphics-hook32)

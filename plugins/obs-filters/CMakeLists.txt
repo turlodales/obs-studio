@@ -1,13 +1,7 @@
-cmake_minimum_required(VERSION 3.22...3.25)
-
-legacy_check()
+cmake_minimum_required(VERSION 3.28...3.30)
 
 add_library(obs-filters MODULE)
 add_library(OBS::filters ALIAS obs-filters)
-
-if(OS_WINDOWS)
-  target_enable_feature(obs-filters "NVIDIA Audio FX support" LIBNVAFX_ENABLED HAS_NOISEREDUCTION)
-endif()
 
 target_sources(
   obs-filters
@@ -32,6 +26,7 @@ target_sources(
     obs-filters.c
     scale-filter.c
     scroll-filter.c
+    sdr-on-hdr-filter.c
     sharpness-filter.c
 )
 

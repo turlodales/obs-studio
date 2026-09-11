@@ -69,10 +69,8 @@ static obs_properties_t *libfdk_properties(void *unused)
 
 	obs_properties_t *props = obs_properties_create();
 
-	obs_properties_add_int(props, "bitrate", obs_module_text("Bitrate"), 32,
-			       1024, 32);
-	obs_properties_add_bool(props, "afterburner",
-				obs_module_text("Afterburner"));
+	obs_properties_add_int(props, "bitrate", obs_module_text("Bitrate"), 32, 1024, 32);
+	obs_properties_add_bool(props, "afterburner", obs_module_text("Afterburner"));
 
 	return props;
 }
@@ -146,21 +144,14 @@ static void *libfdk_create(obs_data_t *settings, obs_encoder_t *encoder)
 
 	CHECK_LIBFDK(aacEncoder_SetParam(enc->fdkhandle, AACENC_AOT,
 					 2)); // MPEG-4 AAC-LC
-	CHECK_LIBFDK(aacEncoder_SetParam(enc->fdkhandle, AACENC_SAMPLERATE,
-					 enc->sample_rate));
-	CHECK_LIBFDK(
-		aacEncoder_SetParam(enc->fdkhandle, AACENC_CHANNELMODE, mode));
-	CHECK_LIBFDK(
-		aacEncoder_SetParam(enc->fdkhandle, AACENC_CHANNELORDER, 1));
-	CHECK_LIBFDK(
-		aacEncoder_SetParam(enc->fdkhandle, AACENC_BITRATEMODE, 0));
-	CHECK_LIBFDK(
-		aacEncoder_SetParam(enc->fdkhandle, AACENC_BITRATE, bitrate));
+	CHECK_LIBFDK(aacEncoder_SetParam(enc->fdkhandle, AACENC_SAMPLERATE, enc->sample_rate));
+	CHECK_LIBFDK(aacEncoder_SetParam(enc->fdkhandle, AACENC_CHANNELMODE, mode));
+	CHECK_LIBFDK(aacEncoder_SetParam(enc->fdkhandle, AACENC_CHANNELORDER, 1));
+	CHECK_LIBFDK(aacEncoder_SetParam(enc->fdkhandle, AACENC_BITRATEMODE, 0));
+	CHECK_LIBFDK(aacEncoder_SetParam(enc->fdkhandle, AACENC_BITRATE, bitrate));
 
-	CHECK_LIBFDK(
-		aacEncoder_SetParam(enc->fdkhandle, AACENC_TRANSMUX, transmux));
-	CHECK_LIBFDK(aacEncoder_SetParam(enc->fdkhandle, AACENC_AFTERBURNER,
-					 afterburner));
+	CHECK_LIBFDK(aacEncoder_SetParam(enc->fdkhandle, AACENC_TRANSMUX, transmux));
+	CHECK_LIBFDK(aacEncoder_SetParam(enc->fdkhandle, AACENC_AFTERBURNER, afterburner));
 
 	CHECK_LIBFDK(aacEncEncode(enc->fdkhandle, NULL, NULL, NULL, NULL));
 
@@ -176,8 +167,7 @@ static void *libfdk_create(obs_data_t *settings, obs_encoder_t *encoder)
 
 	blog(LOG_INFO, "libfdk_aac encoder created");
 
-	blog(LOG_INFO, "libfdk_aac bitrate: %d, channels: %d", bitrate / 1000,
-	     enc->channels);
+	blog(LOG_INFO, "libfdk_aac bitrate: %d, channels: %d", bitrate / 1000, enc->channels);
 
 	return enc;
 
@@ -209,8 +199,7 @@ static void libfdk_destroy(void *data)
 	blog(LOG_INFO, "libfdk_aac encoder destroyed");
 }
 
-static bool libfdk_encode(void *data, struct encoder_frame *frame,
-			  struct encoder_packet *packet, bool *received_packet)
+static bool libfdk_encode(void *data, struct encoder_frame *frame, struct encoder_packet *packet, bool *received_packet)
 {
 	libfdk_encoder_t *enc = data;
 
@@ -248,10 +237,8 @@ static bool libfdk_encode(void *data, struct encoder_frame *frame,
 	out_buf.bufSizes = &out_size;
 	out_buf.bufElSizes = &out_elem_size;
 
-	if ((err = aacEncEncode(enc->fdkhandle, &in_buf, &out_buf, &in_args,
-				&out_args)) != AACENC_OK) {
-		blog(LOG_ERROR, "Failed to encode frame: %s",
-		     libfdk_get_error(err));
+	if ((err = aacEncEncode(enc->fdkhandle, &in_buf, &out_buf, &in_args, &out_args)) != AACENC_OK) {
+		blog(LOG_ERROR, "Failed to encode frame: %s", libfdk_get_error(err));
 		return false;
 	}
 
@@ -303,6 +290,17 @@ static size_t libfdk_frame_size(void *data)
 	return enc->info.frameLength;
 }
 
+static uint32_t libfdk_encoder_delay(void *data)
+{
+	libfdk_encoder_t *enc = data;
+
+#if (AACENCODER_LIB_VL0 >= 4)
+	return enc->info.nDelay;
+#else
+	return enc->info.encoderDelay;
+#endif
+}
+
 struct obs_encoder_info obs_libfdk_encoder = {
 	.id = "libfdk_aac",
 	.type = OBS_ENCODER_AUDIO,
@@ -316,6 +314,7 @@ struct obs_encoder_info obs_libfdk_encoder = {
 	.get_properties = libfdk_properties,
 	.get_extra_data = libfdk_extra_data,
 	.get_audio_info = libfdk_audio_info,
+	.get_priming_samples = libfdk_encoder_delay,
 };
 
 bool obs_module_load(void)
